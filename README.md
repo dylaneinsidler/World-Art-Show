@@ -38,7 +38,7 @@ On both: tap or click the link under a piece to open its page at the museum or o
 - [Minneapolis Institute of Art](https://collections.artsmia.org/) (USA)
 - [SMK – National Gallery of Denmark](https://open.smk.dk/en) (Denmark)
 - [Wikidata](https://www.wikidata.org/) and [Wikimedia Commons](https://commons.wikimedia.org/): paintings, drawings, prints and digital art from around the world
-- [DeviantArt](https://www.deviantart.com/daily-deviations): the pieces its staff pick each day (Daily Deviations), once a key is set up (below)
+- [DeviantArt](https://www.deviantart.com/daily-deviations): the pieces its staff pick each day (Daily Deviations), leaving out photographs, AI-made images and fan art (judged by each piece's tags), once a key is set up (below)
 
 Museum artists need a recorded birth year, no recorded death, and a birth year of 1925 or later. Museums can take years to record a death, so each one is also checked against Wikidata (matching name and birth year).
 

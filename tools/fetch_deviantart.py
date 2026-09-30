@@ -30,8 +30,12 @@ KEY_FILE = HOME / 'deviantart-key.txt'
 REPO = 'dylaneinsidler/World-Art-Show'
 
 DAYS = 730      # how far back to collect Daily Deviations
-BATCH = 150     # days, and 10x as many artist profiles, looked up per run; the rest come in later runs
-PAUSE = 0.4     # seconds between requests, to go easy on DeviantArt
+# DeviantArt slows everything down after a few hundred quick requests, so each run does a batch and the
+# rest come in on later runs (the show opening, and the daily task).
+DAYS_PER_RUN = 150
+TAGS_PER_RUN = 2000     # pieces, 10 per request
+PROFILES_PER_RUN = 300
+PAUSE = 1.0             # seconds between requests
 
 
 def read_key():
@@ -52,35 +56,55 @@ def token(cid, secret):
         'grant_type': 'client_credentials', 'client_id': cid, 'client_secret': secret})['access_token']
 
 
+def api(access, path, **params):
+    """A DeviantArt API call. The access pass goes in a header: DeviantArt ignores it in the address."""
+    return fetch_json(f'https://www.deviantart.com/api/v1/oauth2/{path}?' + urllib.parse.urlencode(params, doseq=True),
+                      headers={'Authorization': f'Bearer {access}'})
+
+
 def download_days(access):
     """Past days never change, so each day is fetched once and kept. Today and yesterday are fetched again."""
     days = load_cache('deviantart-days', False)
     today = datetime.date.today()
     recent = str(today - datetime.timedelta(days=1))
     todo = [str(today - datetime.timedelta(days=n)) for n in range(DAYS)]
-    todo = [d for d in todo if d not in days or d >= recent][:BATCH]
-    print(f'Fetching {len(todo)} days of Daily Deviations...', flush=True)
+    todo = [d for d in todo if d not in days or d >= recent][:DAYS_PER_RUN]
+    print(f'Fetching {len(todo)} days of Daily Deviations ({len(days)} days already kept)...', flush=True)
     for n, date in enumerate(todo, 1):
-        d = fetch_json('https://www.deviantart.com/api/v1/oauth2/browse/dailydeviations?' + urllib.parse.urlencode(
-            {'date': date, 'mature_content': 'false', 'access_token': access}))
-        days[date] = [{k: x.get(k) for k in ('url', 'title', 'category', 'category_path', 'author', 'content',
-                                              'published_time', 'is_mature')} for x in d.get('results', [])]
+        d = api(access, 'browse/dailydeviations', date=date, mature_content='false')
+        days[date] = [{k: x.get(k) for k in ('deviationid', 'url', 'title', 'author', 'content', 'published_time',
+                                              'is_mature')} for x in d.get('results', [])]
         if n % 25 == 0 or n == len(todo):
             save_cache('deviantart-days', days)
         time.sleep(PAUSE)
     return [x for day in days.values() for x in day]
 
 
+def look_up_tags(access, rows):
+    """DeviantArt no longer says what kind of art a piece is; its tags do ("photography", "ai", "fanart")."""
+    known = load_cache('deviantart-tags', False)
+    todo = [r['deviationid'] for r in rows if r.get('deviationid') and r['deviationid'] not in known][:TAGS_PER_RUN]
+    print(f'Looking up tags for {len(todo)} pieces ({len(known)} already known)...', flush=True)
+    for i in range(0, len(todo), 10):
+        d = api(access, 'deviation/metadata', **{'deviationids[]': todo[i:i + 10]})
+        for m in d.get('metadata', []):
+            known[m['deviationid']] = [t['tag_name'].lower() for t in m.get('tags', [])]
+        for dev in todo[i:i + 10]:
+            known.setdefault(dev, [])
+        if i % 250 == 0 or i + 10 >= len(todo):
+            save_cache('deviantart-tags', known)
+        time.sleep(PAUSE)
+    return known
+
+
 def look_up_countries(access, usernames):
     """An artist's country is on their DeviantArt profile, when they've filled it in. Checked again every 60 days."""
     known = load_cache('deviantart-profiles', False, max_age_days=60)
-    todo = sorted(set(usernames) - known.keys())[:BATCH * 10]
+    todo = sorted(set(usernames) - known.keys())[:PROFILES_PER_RUN]
     print(f'Looking up {len(todo)} artists ({len(known)} already known)...', flush=True)
     for n, user in enumerate(todo, 1):
         try:
-            p = fetch_json(f'https://www.deviantart.com/api/v1/oauth2/user/profile/{urllib.parse.quote(user)}?'
-                           + urllib.parse.urlencode({'access_token': access}))
-            known[user] = p.get('country') or ''
+            known[user] = api(access, f'user/profile/{urllib.parse.quote(user)}').get('country') or ''
         except urllib.error.HTTPError:
             known[user] = ''
         if n % 50 == 0 or n == len(todo):
@@ -89,31 +113,57 @@ def look_up_countries(access, usernames):
     return known
 
 
-def pick(rows, countries):
-    """Keeps pictures made by hand or on a computer, by artists whose country is known."""
+# Tags that mean the piece isn't a hand-made or digital artwork by the artist: photographs, AI-made images, fan art
+# of existing cartoon, anime and game characters, and character-sale posts (adoptables, commissions, YCH auctions).
+PHOTO_TAGS = re.compile(r'photo|cosplay|model|nikon|canon|sony|lens')
+AI_TAGS = re.compile(r'^(ai|aiart|ai_art|aiartwork|aigenerated|ai_generated|aiartcommunity|aiassisted|ai_assisted|'
+                     r'aiartist|dalle|dall_e|dalle3|novelai|leonardoai|nightcafe|aiwork|aiimage|generativeai|sdxl|flux|'
+                     r'comfyui)$|midjourney|stablediffusion|synthography')
+FANART_TAGS = re.compile(r'fanart|fan_art|anime|manga|genshin|pokemon|mlp|mylittlepony|videogame|marvel|dc_comics|'
+                         r'starwars|harrypotter|zelda|sonic|naruto|onepiece|honkai|vtuber|fandom|bioshock|fnaf|'
+                         r'undertale|hazbin|helluva|overwatch|minecraft|disney|transformers|spiderman|batman|'
+                         r'warhammer|splatoon|kirby|touhou|hololive|chibi|fursona|furry|anthro|kemono')
+SALE_TAGS = re.compile(r'adopt|commission|^ych|auction|refsheet|reference_?sheet|forsale|^sale$|^closed$|^open$|'
+                       r'^f2u$|^p2u$|freebase|^base$|pixelbase')
+# In titles, sales posts write "OPEN"/"CLOSED" in capitals or brackets; "Open Water" is just a title.
+SALE_TITLE = re.compile(r'(?i:\b(ych|adopts?|adoptables?|commissions?|auction|ota|f2u|p2u|for sale)\b)|'
+                        r'\b(OPEN|CLOSED)\b|(?i:[\[(]\s*(open|closed)\s*[\])])')
+AI_NAME = re.compile(r'(^|[-_])ai([-_]|$)|aiart|ai$', re.I)
+
+
+def pick(rows, tags, countries):
+    """Keeps hand-made and digital art, by artists whose country is known."""
     out, skipped, unknown = [], Counter(), Counter()
     for r in rows:
         content, author = r.get('content') or {}, r.get('author') or {}
-        kind = f"{r.get('category_path') or ''} {r.get('category') or ''}".lower()
+        user, t = author.get('username') or '', tags.get(r.get('deviationid'))
         if r.get('is_mature'):
             skipped['mature'] += 1
         elif not content.get('src'):
             skipped['not a picture (writing, video...)'] += 1
-        elif re.search(r'photo|literature|poetry|prose|artisan|craft|sculpt|cosplay', kind):
-            skipped['photography, writing or craft'] += 1
-        elif author.get('username') not in countries:
+        elif t is None:
+            skipped['tags not looked up yet'] += 1
+        elif any(PHOTO_TAGS.search(x) for x in t):
+            skipped['photography'] += 1
+        elif AI_NAME.search(user) or any(AI_TAGS.search(x) for x in t):
+            skipped['AI-made'] += 1
+        elif any(FANART_TAGS.search(x) for x in t):
+            skipped['fan art'] += 1
+        elif any(SALE_TAGS.search(x) for x in t) or SALE_TITLE.search(r.get('title') or ''):
+            skipped['character sales (adoptables, commissions)'] += 1
+        elif user not in countries:
             skipped['artist not looked up yet'] += 1
         else:
-            label = countries[author['username']]
-            country = country_from_label(label) if label else ''
-            if label and country is None:
+            label = countries[user]
+            country = country_from_label(label) if label and label != 'Unknown' else ''
+            if label and label != 'Unknown' and country is None:
                 unknown[label] += 1
             if not country:
                 skipped['no country on profile'] += 1
                 continue
             year = time.gmtime(int(r['published_time'])).tm_year if r.get('published_time') else ''
-            out.append(item('DeviantArt', r['url'], content['src'], r.get('title'), str(year), author['username'],
-                            0, [country], content.get('width'), content.get('height'), kind.strip()))
+            out.append(item('DeviantArt', r['url'], content['src'], r.get('title'), str(year), user,
+                            0, [country], content.get('width'), content.get('height'), ' '.join(t)))
     print(f'{len(rows)} Daily Deviations, {len(out)} kept. Left out: '
           + ', '.join(f'{n} {why}' for why, n in skipped.most_common()))
     if unknown:
@@ -164,8 +214,9 @@ def main():
     cid, secret = read_key()
     access = token(cid, secret)
     rows = download_days(access)
+    tags = look_up_tags(access, rows)
     countries = look_up_countries(access, {(r.get('author') or {}).get('username') for r in rows} - {None})
-    works = pick(rows, countries)
+    works = pick(rows, tags, countries)
     fields = ['artist', 'country', 'title', 'date', 'source', 'page', 'image', 'w', 'h']
     works = sorted(({f: w[f] for f in fields} for w in works), key=lambda w: w['page'])
     send_to_github({'collected': time.strftime('%Y-%m-%d %H:%M'), 'works': works})

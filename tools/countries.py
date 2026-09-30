@@ -115,7 +115,7 @@ WIKIDATA_NAMES = {
     'Moldova, Republic of': 'Moldova', 'Macedonia, the Former Yugoslav Republic of': 'North Macedonia',
     "Lao People's Democratic Republic": 'Laos', 'Brunei Darussalam': 'Brunei', 'Libyan Arab Jamahiriya': 'Libya',
     'Palestinian Territory, Occupied': 'Palestine', 'Congo, the Democratic Republic of the': 'Democratic Republic of the Congo',
-    'USA': 'United States', 'UK': 'United Kingdom', 'Great Britain': 'United Kingdom', 'Holland': 'Netherlands',
+    'Macedonia': 'North Macedonia', 'Antarctica': '', 'USA': 'United States', 'UK': 'United Kingdom', 'Great Britain': 'United Kingdom', 'Holland': 'Netherlands',
 }
 
 
@@ -131,7 +131,7 @@ def country_from_label(label):
 
 def countries_from_nationality(text):
     """'Ghanaian' -> ['Ghana']; 'Chinese American' -> ['China', 'United States']; unknown -> []."""
-    text = NATIVE_US.sub('American', re.sub(r'\(.*?\)|\S+ Clan.*', ' ', text or ''))
+    text = NATIVE_US.sub('American', re.sub(r'\(.*?\)|\S+ Clan\b.*', ' ', text or ''))
     text = re.sub(r'\b(born|active|citizen|resident|living|works|lives)\b.*', '', text, flags=re.I)
     text = re.sub(r'\s+', ' ', text).strip(' ,;.')
     if not text:
