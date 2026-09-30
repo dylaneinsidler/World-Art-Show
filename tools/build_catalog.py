@@ -45,6 +45,7 @@ BORN_AFTER = 1925        # older than ~100: treat as not living even if no death
 MAX_PER_ARTIST = 20      # keeps a few very prolific artists from filling the catalog
 MIN_SIDE = 800           # skip images too small to look good on a large screen
 DEVIANTART_DAYS = 730    # how far back to collect Daily Deviations
+DEVIANTART_BATCH = 150   # days, and 10x as many artist profiles, fetched per run: the rest come in later runs
 
 # Photographs, film and video, recognised by what the work is made of ("gelatin silver print",
 # "inkjet print", "single-channel video"). Inkjet and pigment prints in museums are nearly always photographs.
@@ -231,7 +232,7 @@ def download_deviantart(token, fresh):
     days = load_cache('deviantart-days', fresh)
     today = datetime.date.today()
     todo = [str(today - datetime.timedelta(days=n)) for n in range(DEVIANTART_DAYS)]
-    todo = [d for d in todo if d not in days or d >= str(today - datetime.timedelta(days=1))]
+    todo = [d for d in todo if d not in days or d >= str(today - datetime.timedelta(days=1))][:DEVIANTART_BATCH]
     if todo:
         print(f'Downloading {len(todo)} days of DeviantArt Daily Deviations...', flush=True)
     for n, date in enumerate(todo, 1):
@@ -251,7 +252,7 @@ def download_deviantart(token, fresh):
 def deviantart_countries(token, usernames, fresh):
     """An artist's country is on their DeviantArt profile, when they've filled it in."""
     known = load_cache('deviantart-profiles', fresh, max_age_days=60)
-    todo = sorted(set(usernames) - known.keys())
+    todo = sorted(set(usernames) - known.keys())[:DEVIANTART_BATCH * 10]
     if todo:
         print(f'Looking up {len(todo)} DeviantArt artists...', flush=True)
     for n, user in enumerate(todo, 1):
@@ -429,23 +430,36 @@ def from_wikidata(rows, unknown):
 
 
 def from_deviantart(rows, countries_by_user, unknown):
-    out = []
+    out, skipped = [], Counter()
     for r in rows:
         content, author = r.get('content') or {}, r.get('author') or {}
         path = (r.get('category_path') or '').lower()
         # Photography and writing are Daily Deviations too; only pictures made by hand or on a computer here.
-        if r.get('is_mature') or not content.get('src') or path.startswith(('photography', 'literature', 'artisan')) \
-                or re.search(r'photo|sculpt|craft', f"{path} {r.get('category') or ''}", re.I):
-            continue
-        label = countries_by_user.get(author.get('username'), '')
-        country = country_from_label(label) if label else ''
-        if label and country is None:
-            unknown[('DeviantArt', label)] += 1
-        if not country:
-            continue
-        year = time.gmtime(int(r['published_time'])).tm_year if r.get('published_time') else ''
-        out.append(item('DeviantArt', r['url'], content['src'], r.get('title'), str(year), author['username'],
-                        0, [country], content.get('width'), content.get('height'), path))
+        if r.get('is_mature'):
+            skipped['mature'] += 1
+        elif not content.get('src'):
+            skipped['no picture (writing, video...)'] += 1
+        elif path.startswith(('photography', 'literature', 'artisan'))                 or re.search(r'photo|sculpt|craft', f"{path} {r.get('category') or ''}", re.I):
+            skipped['photography or craft'] += 1
+        elif author.get('username') not in countries_by_user:
+            skipped['artist not looked up yet'] += 1
+        else:
+            label = countries_by_user[author['username']]
+            country = country_from_label(label) if label else ''
+            if label and country is None:
+                unknown[('DeviantArt', label)] += 1
+            if not country:
+                skipped['no country on profile'] += 1
+                continue
+            year = time.gmtime(int(r['published_time'])).tm_year if r.get('published_time') else ''
+            out.append(item('DeviantArt', r['url'], content['src'], r.get('title'), str(year), author['username'],
+                            0, [country], content.get('width'), content.get('height'), path))
+    print(f'DeviantArt: {len(rows)} Daily Deviations, {len(out)} kept; left out: '
+          + ', '.join(f'{n} {why}' for why, n in skipped.most_common()))
+    if rows:
+        sample = rows[-1]
+        print(f"  e.g. category_path={sample.get('category_path')!r} category={sample.get('category')!r} "
+              f"content={'yes' if sample.get('content') else 'no'}")
     return out
 
 
