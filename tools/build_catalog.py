@@ -70,11 +70,19 @@ def fetch_json(url, body=None, headers=None, tries=4, form=None):
         try:
             with urllib.request.urlopen(urllib.request.Request(url, data=data, headers=h), timeout=90) as r:
                 raw = r.read()
-                return json.loads(gzip.decompress(raw) if r.headers.get('Content-Encoding') == 'gzip' else raw)
+                raw = gzip.decompress(raw) if r.headers.get('Content-Encoding') == 'gzip' else raw
+                try:
+                    return json.loads(raw)
+                except ValueError:
+                    # Say what came back instead (a block page, an empty reply...). Only the address's path is
+                    # shown: its query can hold a key.
+                    raise ValueError(f'not JSON from {urllib.parse.urlsplit(url).path} (HTTP {r.status}, '
+                                     f'{r.headers.get("Content-Type")}): {raw[:160]!r}') from None
         except Exception as e:
             if attempt == tries - 1 or (isinstance(e, urllib.error.HTTPError) and e.code in (400, 401, 403, 404)):
                 raise
-            print(f'    retry after {e}', flush=True)
+            where = urllib.parse.urlsplit(url).path
+            print(f'    retry after {getattr(e, "code", "")} {e if not isinstance(e, urllib.error.HTTPError) else e.reason} ({where})', flush=True)
             time.sleep(5 * (attempt + 1))
 
 
