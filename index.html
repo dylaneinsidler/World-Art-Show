@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>World Art Show</title>
+<link rel="icon" href="art.ico">
+<style>
+  :root {
+    --bg: #0c0c0d;
+    --ink: #f3f0ea;
+    --ink-2: rgba(243, 240, 234, .74);
+    --ink-3: rgba(243, 240, 234, .50);
+    --label-h: clamp(66px, 9.5vh, 100px);
+    --side: clamp(18px, 3vw, 56px);
+    --fade: 1400ms;
+  }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); }
+  body {
+    color: var(--ink);
+    font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+  }
+  body.idle, body.idle * { cursor: none; }
+
+  /* Two slides stacked; the new one fades in over the old one. */
+  .slide { position: absolute; inset: 0; opacity: 0; transition: opacity var(--fade) ease; }
+  .slide.shown { opacity: 1; }
+  .slide.front { z-index: 1; }
+
+  /* Every piece fills the same frame: the art is fitted whole (never cropped), and the space around it
+     is filled with a soft, dark, blurred copy of the same piece. */
+  .wash {
+    position: absolute; inset: -80px;
+    background-size: cover; background-position: center;
+    filter: blur(50px) saturate(1.1) brightness(.40);
+  }
+  .shade { position: absolute; inset: 0; background: linear-gradient(to bottom, transparent 62%, rgba(0, 0, 0, .55)); }
+  .frame {
+    position: absolute; left: var(--side); right: var(--side);
+    top: clamp(18px, 3.4vh, 44px); bottom: var(--label-h);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .art { display: block; box-shadow: 0 20px 70px rgba(0, 0, 0, .55), 0 3px 10px rgba(0, 0, 0, .35); }
+
+  .label {
+    position: absolute; right: var(--side); bottom: 0; height: var(--label-h);
+    max-width: min(62vw, 900px);
+    display: flex; flex-direction: column; justify-content: center; align-items: flex-end;
+    gap: 3px; text-align: right;
+  }
+  .label > * { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .who { font-size: clamp(13px, 1.55vh, 16px); font-weight: 600; letter-spacing: .01em; }
+  .who .country { font-weight: 400; color: var(--ink-2); }
+  .who .dot { color: var(--ink-3); margin: 0 .45em; font-weight: 400; }
+  .what { font: italic clamp(12px, 1.4vh, 14.5px) Georgia, "Times New Roman", serif; color: var(--ink-2); }
+  .where { font-size: clamp(10.5px, 1.2vh, 12px); color: var(--ink-3); text-decoration: none; letter-spacing: .02em; }
+  .where:hover { color: var(--ink-2); text-decoration: underline; }
+
+  #status {
+    position: absolute; z-index: 2; left: var(--side); bottom: 0; height: var(--label-h);
+    display: flex; align-items: center;
+    font-size: clamp(11px, 1.25vh, 13px); color: var(--ink-3); letter-spacing: .04em;
+  }
+  #welcome {
+    position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 10px;
+    transition: opacity 900ms ease; pointer-events: none;
+  }
+  #welcome h1 { margin: 0; font: 300 clamp(28px, 4.2vh, 44px) "Segoe UI Variable Display", "Segoe UI", sans-serif; letter-spacing: .28em; text-transform: uppercase; }
+  #welcome p { margin: 0; font-size: clamp(12px, 1.4vh, 14px); color: var(--ink-3); letter-spacing: .06em; }
+  #welcome.gone { opacity: 0; }
+</style>
+</head>
+<body>
+<div class="slide" id="slideA"></div>
+<div class="slide" id="slideB"></div>
+<div id="status"></div>
+<div id="welcome"><h1>World Art Show</h1><p id="welcomeNote">Finding the first piece…</p></div>
+
+<script src="catalog.js"></script>
+<script>
+'use strict';
+
+const SECONDS_PER_PIECE = 60;
+const LOAD_TIMEOUT_MS = 40000;   // some museum servers take a while to make the image
+// How often an artist comes up, by where their work comes from. Wikimedia Commons (paintings, drawings,
+// murals and digital art uploaded by the public) adds countries the museums don't cover but is more
+// hit-or-miss, so its artists get a smaller share: about one piece in nine.
+const SOURCE_WEIGHT = { 'Wikimedia Commons': 0.25 };
+
+const $ = id => document.getElementById(id);
+const statusEl = $('status');
+
+// ------------------------------------------------------------------ catalog
+
+const catalog = window.ART_CATALOG;
+if (!catalog || !catalog.works.length) {
+  $('welcomeNote').textContent = 'The art list (catalog.js) is missing. Rebuild it with tools/build_catalog.py.';
+  throw new Error('no catalog');
+}
+const col = Object.fromEntries(catalog.fields.map((f, i) => [f, i]));
+const works = catalog.works.map(r => ({
+  artist: r[col.artist], country: r[col.country], title: r[col.title], date: r[col.date],
+  source: r[col.source], page: r[col.page], image: r[col.image],
+}));
+
+// country -> artist -> works. A piece is picked by country first, so the show travels the world
+// instead of mostly showing the countries whose artists the museums collect most.
+const byCountry = new Map();
+const artistWeight = new Map();
+for (const w of works) {
+  const country = w.country.split(' / ')[0];
+  w.artistKey = w.artist + '|' + w.country;
+  if (!byCountry.has(country)) byCountry.set(country, new Map());
+  const artists = byCountry.get(country);
+  if (!artists.has(w.artistKey)) artists.set(w.artistKey, []);
+  artists.get(w.artistKey).push(w);
+  artistWeight.set(w.artistKey, Math.max(artistWeight.get(w.artistKey) || 0, SOURCE_WEIGHT[w.source] ?? 1));
+}
+const artistCount = artistWeight.size;
+// Bigger art scenes come up more often, but only by the square root of their size, so every country
+// gets regular turns.
+const countryWeight = new Map([...byCountry].map(([country, artists]) =>
+  [country, Math.sqrt([...artists.keys()].reduce((sum, a) => sum + artistWeight.get(a), 0))]));
+
+// ------------------------------------------------------------------ memory between sessions
+
+function load(key, fallback) {
+  try { return JSON.parse(localStorage.getItem('worldArtShow.' + key)) ?? fallback; } catch { return fallback; }
+}
+function save(key, value) {
+  try { localStorage.setItem('worldArtShow.' + key, JSON.stringify(value)); } catch { /* private window: fine */ }
+}
+const seen = new Set(load('seen', []));                // pages already shown, so pieces don't repeat
+let recentArtists = load('recentArtists', []);          // no artist twice until many others have had a turn
+let recentCountries = load('recentCountries', []);      // and no country twice in a row
+const failed = new Set();                               // images that wouldn't load this session
+
+const artistMemory = Math.min(600, Math.floor(artistCount * 0.6));
+const countryMemory = Math.min(8, Math.floor(byCountry.size / 3));
+
+function remember(work) {
+  seen.add(work.page);
+  if (seen.size > 30000) seen.delete(seen.values().next().value);
+  recentArtists = [...recentArtists.filter(a => a !== work.artistKey), work.artistKey].slice(-artistMemory);
+  const country = work.country.split(' / ')[0];
+  recentCountries = [...recentCountries.filter(c => c !== country), country].slice(-countryMemory);
+  save('seen', [...seen]);
+  save('recentArtists', recentArtists);
+  save('recentCountries', recentCountries);
+}
+
+// ------------------------------------------------------------------ choosing the next piece
+
+function randomItem(list) { return list[Math.floor(Math.random() * list.length)]; }
+
+function weightedItem(list, weightOf) {
+  let r = Math.random() * list.reduce((sum, x) => sum + weightOf(x), 0);
+  for (const x of list) { if ((r -= weightOf(x)) < 0) return x; }
+  return list[list.length - 1];
+}
+
+function pickWork(avoid) {
+  const recentA = new Set(recentArtists), recentC = new Set(recentCountries);
+  const options = [];
+  for (const [country, artists] of byCountry) {
+    if (recentC.has(country)) continue;
+    const fresh = [...artists.keys()].filter(a => !recentA.has(a) && !avoid.has(a));
+    if (fresh.length) options.push({ country, fresh });
+  }
+  if (!options.length) {                 // everything is "recent": forget the history and start over
+    recentArtists = []; recentCountries = [];
+    return pickWork(new Set());
+  }
+  const choice = weightedItem(options, o => countryWeight.get(o.country));
+  const artist = weightedItem(choice.fresh, a => artistWeight.get(a));
+  const artistWorks = byCountry.get(choice.country).get(artist);
+  const usable = artistWorks.filter(w => !failed.has(w.image));
+  const unseen = usable.filter(w => !seen.has(w.page));
+  return randomItem(unseen.length ? unseen : usable.length ? usable : artistWorks);
+}
+
+function loadImage(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const timer = setTimeout(() => { img.src = ''; reject(new Error('timeout')); }, LOAD_TIMEOUT_MS);
+    img.onload = () => {
+      clearTimeout(timer);
+      if (img.naturalWidth < 50 || img.naturalHeight < 50) reject(new Error('too small'));
+      else img.decode().catch(() => {}).then(() => resolve(img));
+    };
+    img.onerror = () => { clearTimeout(timer); reject(new Error('failed')); };
+    img.src = url;
+  });
+}
+
+// Finds a piece whose image actually loads. Tries several, since a museum server can be slow or down.
+async function prepareNext() {
+  const avoid = new Set();
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const work = pickWork(avoid);
+    avoid.add(work.artistKey);
+    try {
+      return { work, img: await loadImage(work.image) };
+    } catch {
+      failed.add(work.image);
+    }
+  }
+  return null;
+}
+
+// ------------------------------------------------------------------ showing it
+
+const slides = [$('slideA'), $('slideB')];
+let front = 0;
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+function displayPath(url) {
+  let path = url.replace(/^https?:\/\/(www\.)?/, '');
+  try { path = decodeURIComponent(path); } catch { /* keep as is */ }
+  return path.replace(/_/g, ' ');
+}
+
+function fitArt(slide) {
+  const frame = slide.querySelector('.frame'), art = slide.querySelector('.art');
+  if (!frame || !art) return;
+  const scale = Math.min(frame.clientWidth / art.naturalWidth, frame.clientHeight / art.naturalHeight);
+  art.style.width = Math.round(art.naturalWidth * scale) + 'px';
+  art.style.height = Math.round(art.naturalHeight * scale) + 'px';
+}
+
+function show({ work, img }) {
+  const next = slides[1 - front], prev = slides[front];
+  next.replaceChildren();
+
+  const wash = el('div', 'wash');
+  wash.style.backgroundImage = `url("${work.image.replace(/"/g, '%22')}")`;
+  const frame = el('div', 'frame');
+  img.className = 'art';
+  img.alt = `${work.title} by ${work.artist}`;
+  frame.append(img);
+
+  const who = el('div', 'who');
+  who.append(el('span', 'artist', work.artist), el('span', 'dot', '·'), el('span', 'country', work.country));
+  const what = el('div', 'what', work.date ? `${work.title}, ${work.date}` : work.title);
+  const where = el('a', 'where', displayPath(work.page));
+  where.href = work.page;
+  where.target = '_blank';
+  where.rel = 'noopener';
+  where.title = work.source;
+  const label = el('div', 'label');
+  label.append(who, what, where);
+
+  next.append(wash, el('div', 'shade'), frame, label);
+  fitArt(next);
+  next.classList.add('front');
+  prev.classList.remove('front');
+  void next.offsetWidth;          // start the fade from fully transparent
+  next.classList.add('shown');
+  front = 1 - front;
+  setTimeout(() => { if (slides[front] !== prev) prev.classList.remove('shown'); }, 1500);
+  $('welcome').classList.add('gone');
+}
+
+// ------------------------------------------------------------------ the show
+
+const history = [];      // shown pieces, for going back with the left arrow
+let place = -1;          // where we are in history
+let upcoming = null;     // the next piece, loading in the background
+let timer = null;
+let timeLeft = 0;        // ms until the next piece, counting only time the window is actually visible
+let timerStarted = 0;
+let paused = false;
+let busy = false;
+
+function setStatus(text) { statusEl.textContent = text || ''; }
+
+function runTimer() {
+  clearTimeout(timer);
+  timer = null;
+  if (paused || document.hidden) return;
+  timerStarted = Date.now();
+  timer = setTimeout(advance, timeLeft);
+}
+
+function schedule(ms = SECONDS_PER_PIECE * 1000) {
+  timeLeft = ms;
+  runTimer();
+}
+
+// While the window is minimized or covered, the clock stops: each piece gets its full minute on screen
+// instead of the show moving on through pieces nobody sees.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    if (timer) timeLeft = Math.max(0, timeLeft - (Date.now() - timerStarted));
+    clearTimeout(timer);
+    timer = null;
+  } else {
+    runTimer();
+  }
+});
+
+async function advance() {
+  if (busy) return;
+  busy = true;
+  clearTimeout(timer);
+  let ready;
+  if (place < history.length - 1) {                  // stepping forward again after going back
+    const work = history[place + 1];
+    ready = await loadImage(work.image).then(img => ({ work, img }), () => null);
+    if (ready) place++;
+  } else {
+    ready = await (upcoming || prepareNext());
+    upcoming = null;
+    if (ready) { history.push(ready.work); place = history.length - 1; remember(ready.work); }
+  }
+  if (ready) {
+    show(ready);
+    setStatus(paused ? 'Paused' : '');
+  } else {
+    setStatus("Can't reach the art collections right now. Trying again…");
+    $('welcomeNote').textContent = "Can't reach the art collections. Is the internet connected? Trying again…";
+  }
+  busy = false;
+  if (!upcoming) upcoming = prepareNext();
+  schedule(ready ? SECONDS_PER_PIECE * 1000 : 15000);
+}
+
+async function goBack() {
+  if (busy || place <= 0) return;
+  busy = true;
+  const work = history[place - 1];
+  const ready = await loadImage(work.image).then(img => ({ work, img }), () => null);
+  if (ready) { place--; show(ready); }
+  busy = false;
+  schedule();
+}
+
+function togglePause() {
+  if (!paused && timer) timeLeft = Math.max(0, timeLeft - (Date.now() - timerStarted));
+  paused = !paused;
+  setStatus(paused ? 'Paused' : '');
+  if (paused) { clearTimeout(timer); timer = null; } else runTimer();   // resume where it left off
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight') advance();
+  else if (e.key === 'ArrowLeft') goBack();
+  else if (e.key === ' ') { e.preventDefault(); togglePause(); }
+  else if (e.key === 'f' || e.key === 'F' || e.key === 'F11') {
+    e.preventDefault();
+    if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen();
+  }
+});
+document.addEventListener('dblclick', () => {
+  if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen();
+});
+
+window.addEventListener('resize', () => slides.forEach(fitArt));
+
+// Hide the mouse pointer when it's not moving.
+let idleTimer;
+document.addEventListener('mousemove', () => {
+  document.body.classList.remove('idle');
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => document.body.classList.add('idle'), 2500);
+});
+
+advance();
+</script>
+</body>
+</html>
