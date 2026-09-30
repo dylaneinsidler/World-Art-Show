@@ -83,7 +83,12 @@ def cached(name, max_age_hours, download):
     if path.exists() and time.time() - path.stat().st_mtime < max_age_hours * 3600:
         return json.loads(path.read_text(encoding='utf-8'))
     print(f'Downloading {name}...', flush=True)
-    data = download()
+    try:
+        data = download()
+    except Exception as e:
+        # One source being down shouldn't stop the others: use its last good download, if there is one.
+        print(f'  {name} failed ({e}); using its last download instead', flush=True)
+        return json.loads(path.read_text(encoding='utf-8')) if path.exists() else []
     save_cache(name, data)
     return data
 
@@ -292,23 +297,27 @@ def item(source, page, image, title, date, artist, born, countries, width, heigh
             'w': int(width or 0), 'h': int(height or 0), 'kind': kind}
 
 
-# Only art made by hand (or digitally): no photography, no installation views (photos of rooms), and no
-# collection objects that aren't artworks to hang on a wall.
-AIC_SKIP_TYPES = {'Photograph', 'Installation', 'Graphic Design', 'Architectural Drawing', 'Design', 'Book', 'Model',
-                  'Film, Video, New Media', 'Time Based Media', 'Costume and Accessories', 'non-art', 'Furniture',
-                  'Furnishings'}
+# Only flat, hand-made art: paintings, drawings, watercolors, prints, collages. Photographs are out, and so are
+# 3D objects (sculpture, ceramics, glass, textiles...): a photo of an object looks like a photograph, not like art.
+AIC_TYPES = {'Painting', 'Drawing and Watercolor', 'Print'}
 AIC_SKIP_DEPARTMENTS = {'Photography and Media', 'Architecture and Design',
                         'Ryerson and Burnham Libraries Special Collections', 'AIC Archives'}
-MIA_SKIP = re.compile(r'Photograph|Installation|Video|Film|Time-Based|Books & Publications|Printing Matrices|'
-                      r'Furniture|Jewelry|Judaica|Costume|Architecture', re.I)
-SMK_SKIP = re.compile(r'Photo|Video|Film|Installation|Performance', re.I)
+FLAT_ART = re.compile(r'painting|drawing|print|works? on paper|collage|calligraphy|watercolou?r|gouache|pastel|'
+                      r'etching|lithograph|woodcut|linocut|serigraph|screenprint|engraving|aquatint|intaglio|sketch', re.I)
+NOT_FLAT = re.compile(r'photo|video|film|installation|performance|sculpture|statue|relief|ceramic|glass|wood(?!cut)|'
+                      r'metal|lacquer|bamboo|textile|jewel|furniture|costume|multiple|object|wall piece|'
+                      r'matri(x|ces)|book|publication|judaica|architecture|time-based', re.I)
+
+
+def flat_art(kind):
+    return bool(FLAT_ART.search(kind or '')) and not NOT_FLAT.search(kind or '')
 
 
 def from_aic(rows, unknown):
     out = []
     for r in rows:
         lines = [clean(x) for x in (r.get('artist_display') or '').split('\n') if clean(x)]
-        if not lines or not r.get('image_id') or r.get('artwork_type_title') in AIC_SKIP_TYPES \
+        if not lines or not r.get('image_id') or r.get('artwork_type_title') not in AIC_TYPES \
                 or r.get('department_title') in AIC_SKIP_DEPARTMENTS or PHOTO_MEDIUM.search(r.get('medium_display') or '') \
                 or not made_since(r.get('date_display')):
             continue
@@ -344,7 +353,7 @@ def from_mia(rows, unknown):
         artist = clean(r.get('artist'))
         # Skip group credits like "Artist; Publisher: X" where the dates may belong to someone else.
         if not born or born < BORN_AFTER or not artist or ';' in artist or r.get('image') != 'valid' \
-                or MIA_SKIP.search(r.get('classification') or '') or PHOTO_MEDIUM.search(r.get('medium') or '') \
+                or not flat_art(r.get('classification')) or PHOTO_MEDIUM.search(r.get('medium') or '') \
                 or not made_since(r.get('dated')):
             continue
         nationality = clean(r.get('nationality')) or clean(r.get('life_date')).split(',')[0]
@@ -366,7 +375,7 @@ def from_smk(rows, unknown):
         makers = [p for p in (r.get('production') or []) if p.get('creator')]
         kind = ', '.join(o.get('name', '') for o in r.get('object_names') or [])
         date = (r.get('production_date') or [{}])[0].get('period') or ''
-        if not makers or not r.get('image_iiif_id') or SMK_SKIP.search(kind) \
+        if not makers or not r.get('image_iiif_id') or not flat_art(kind) \
                 or PHOTO_MEDIUM.search(' '.join(r.get('techniques') or [])) or not made_since(date):
             continue
         p = makers[0]
@@ -395,7 +404,7 @@ def from_wikidata(rows, unknown):
     by_work = {}
     for r in rows:
         born = int(r['born'][:4]) if r.get('born', '')[:4].isdigit() else 0
-        if born < BORN_AFTER or r['kind'] not in WIKIDATA_KINDS:
+        if born < BORN_AFTER or r['kind'] not in WIKIDATA_KINDS or not made_since((r.get('made') or '')[:4]):
             continue
         w = by_work.setdefault(r['work'], {**r, 'countries': []})
         country = country_from_label(r.get('countryLabel', ''))
@@ -425,8 +434,8 @@ def from_deviantart(rows, countries_by_user, unknown):
         content, author = r.get('content') or {}, r.get('author') or {}
         path = (r.get('category_path') or '').lower()
         # Photography and writing are Daily Deviations too; only pictures made by hand or on a computer here.
-        if r.get('is_mature') or not content.get('src') or path.startswith(('photography', 'literature')) \
-                or 'photo' in (r.get('category') or '').lower():
+        if r.get('is_mature') or not content.get('src') or path.startswith(('photography', 'literature', 'artisan')) \
+                or re.search(r'photo|sculpt|craft', f"{path} {r.get('category') or ''}", re.I):
             continue
         label = countries_by_user.get(author.get('username'), '')
         country = country_from_label(label) if label else ''
@@ -555,14 +564,18 @@ def main():
     items = ([it for it in museums if (it['artist'], it['born']) not in dead]
              + add_commons_sizes(from_wikidata(cached('wikidata', age, download_wikidata), unknown), args.fresh))
 
-    token = deviantart_token()
-    if token:
-        rows = download_deviantart(token, args.fresh)
-        users = deviantart_countries(token, {(r.get('author') or {}).get('username') for r in rows} - {None},
-                                     args.fresh)
-        items += from_deviantart(rows, users, unknown)
-    else:
-        print('DeviantArt skipped: no DEVIANTART_CLIENT_ID / DEVIANTART_CLIENT_SECRET set.')
+    try:
+        token = deviantart_token()
+        if token:
+            rows = download_deviantart(token, args.fresh)
+            users = deviantart_countries(token, {(r.get('author') or {}).get('username') for r in rows} - {None},
+                                         args.fresh)
+            items += from_deviantart(rows, users, unknown)
+        else:
+            print('DeviantArt skipped: no DEVIANTART_CLIENT_ID / DEVIANTART_CLIENT_SECRET set.')
+    except Exception as e:
+        # Days and profiles fetched before the failure are kept for next time; this list goes without.
+        print(f'DeviantArt failed ({e}); building without it this time.')
 
     # Drop images known to be too small, and exact duplicates (the same file listed twice).
     seen, kept = set(), []

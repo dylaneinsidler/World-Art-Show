@@ -1,10 +1,11 @@
 # World Art Show: opens the art window, large and centered on the screen the mouse is on.
 # Started from the Desktop shortcut (see install.ps1). If the window is already open, this brings it to the front.
 
+# The show lives on the website (the same one the iPad uses), which GitHub keeps up to date with new art.
+$showUrl = 'https://dylaneinsidler.github.io/World-Art-Show/'
 $windowShare = 0.84   # the window's share of the screen's width and height
 
 $ErrorActionPreference = 'SilentlyContinue'
-$here = Split-Path -Parent $MyInvocation.MyCommand.Path
 # The window's browser profile lives in AppData, not next to these files: thousands of small files that change
 # constantly, which would churn a synced folder like Google Drive. It also keeps the show's memory of what it
 # has already shown.
@@ -73,11 +74,10 @@ $height = [int]($area.Height * $windowShare)
 $x = $area.X + [int](($area.Width - $width) / 2)
 $y = $area.Y + [int](($area.Height - $height) / 2)
 
-$url = ([Uri](Join-Path $here 'index.html')).AbsoluteUri
 $proc = Start-Process $browser -PassThru -ArgumentList @(
     "--user-data-dir=`"$profileDir`"",
     '--no-first-run', '--no-default-browser-check', '--hide-crash-restore-bubble',
-    "--app=$url", "--window-position=$x,$y", "--window-size=$width,$height"
+    "--app=$showUrl", "--window-position=$x,$y", "--window-size=$width,$height"
 )
 
 # With display scaling above 100%, the browser reads the size above in its own units; set it exactly.

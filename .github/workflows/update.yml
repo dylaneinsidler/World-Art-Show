@@ -1,0 +1,69 @@
+# Rebuilds the art list every few hours and publishes the show at https://dylaneinsidler.github.io/World-Art-Show/
+# The show fetches the newest list each time it opens, on the computer and on the iPad.
+name: Update the art
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 */3 * * *'   # every 3 hours
+  workflow_dispatch:          # "Run workflow" button on the Actions tab
+
+permissions:
+  contents: write   # only for the keep-alive commit below
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Slow lookups (death checks, image checks, DeviantArt days and profiles) carry over between runs.
+      - uses: actions/cache@v4
+        with:
+          path: .build-cache
+          key: build-cache-${{ github.run_id }}
+          restore-keys: build-cache-
+
+      - name: Build the art list
+        env:
+          WORLD_ART_SHOW_CACHE: .build-cache
+          DEVIANTART_CLIENT_ID: ${{ secrets.DEVIANTART_CLIENT_ID }}
+          DEVIANTART_CLIENT_SECRET: ${{ secrets.DEVIANTART_CLIENT_SECRET }}
+        run: python tools/build_catalog.py --max-age 0
+
+      - name: Put the site together
+        run: |
+          mkdir site
+          cp -r index.html catalog.json manifest.json art.ico icons site/
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+      # GitHub switches off scheduled runs in a repository with no commits for 60 days.
+      - name: Keep the schedule alive
+        if: github.event_name == 'schedule'
+        run: |
+          if [ $(( $(date +%s) - $(git log -1 --format=%ct) )) -gt $(( 50 * 86400 )) ]; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit --allow-empty -m 'Keep the scheduled art update running'
+            git push
+          fi

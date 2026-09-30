@@ -1,27 +1,19 @@
 # World Art Show
 
-A desktop window that shows art by living artists from around the world, a new piece every 60 seconds.
+New art by living artists from around the world, a new piece every 60 seconds. On your computer it opens as its own window; on an iPad it's a home-screen app that works in portrait and landscape.
 
-- **Hand-made and digital art by artists alive today**, from museum collections and artists around the world. No photography.
-- **Travels the world:** each piece is picked by country first, so it isn't mostly the countries museums collect most. The same artist doesn't come back until hundreds of others have had a turn, and pieces don't repeat.
+- **Art made by hand or on a computer:** paintings, drawings, watercolors, prints, collages and digital art. No photography, and no photos of objects.
+- **New work:** made in 2010 or later, by artists alive today.
+- **Travels the world:** each piece is picked by country first. The same artist doesn't come back until hundreds of others have had a turn, and pieces don't repeat.
 - **Same frame every time:** each piece is shown whole, never cropped, and the space around it is filled with a soft, blurred copy of the piece.
 - **Bottom right:** the artist, their country, the title and year, and the link to the piece at its source.
+- **Always fresh:** GitHub rebuilds the art list every 3 hours, and the show loads the newest list every time it opens.
 
-## What you need
+The show: **https://dylaneinsidler.github.io/World-Art-Show/**
 
-- Windows 10 or 11 with Google Chrome or Microsoft Edge
-- An internet connection: the images load from the museums' own servers
+## On the computer
 
-No accounts or API keys needed.
-
-## Setup
-
-1. Put this folder somewhere permanent.
-2. Right-click `install.ps1` > **Run with PowerShell**.
-
-This adds a **World Art Show** shortcut to your Desktop. Double-click it to open the show.
-
-## Using it
+Right-click `install.ps1` > **Run with PowerShell**. This puts a **World Art Show** shortcut on your Desktop. Double-click it: the show opens large and centered on the screen your mouse is on. Needs Google Chrome or Microsoft Edge.
 
 | | |
 |---|---|
@@ -29,29 +21,40 @@ This adds a **World Art Show** shortcut to your Desktop. Double-click it to open
 | **←** | back to the previous piece |
 | **Space** | pause / resume |
 | **F** or double-click | full screen (Esc to leave) |
-| Click the link | opens the piece's page at the museum |
 
-Close it like any other window. Double-clicking the shortcut while it's open brings it to the front.
+## On the iPad
 
-While the window is minimized or covered by other windows, the show waits, so each piece gets its full minute on screen.
+1. Open **https://dylaneinsidler.github.io/World-Art-Show/** in Safari.
+2. Tap the **Share** button > **Add to Home Screen** > **Add**.
+3. Open **World Art Show** from the home screen. It runs full screen, either way up, and keeps the screen awake.
+
+Swipe left for the next piece, swipe right to go back, tap to pause.
+
+On both: tap or click the link under a piece to open its page at the museum or on DeviantArt. While the show is minimized, covered or in the background, it waits, so each piece gets its full minute on screen.
 
 ## Where the art comes from
-
-All free, public collection data:
 
 - [Art Institute of Chicago](https://www.artic.edu/open-access/public-api) (USA)
 - [Minneapolis Institute of Art](https://collections.artsmia.org/) (USA)
 - [SMK – National Gallery of Denmark](https://open.smk.dk/en) (Denmark)
-- [Wikidata](https://www.wikidata.org/) and [Wikimedia Commons](https://commons.wikimedia.org/): paintings, drawings, prints, murals and digital art from around the world
+- [Wikidata](https://www.wikidata.org/) and [Wikimedia Commons](https://commons.wikimedia.org/): paintings, drawings, prints and digital art from around the world
+- [DeviantArt](https://www.deviantart.com/daily-deviations): the pieces its staff pick each day (Daily Deviations), once a key is set up (below)
 
-Only artists with a recorded birth year, no recorded death, and born in 1925 or later are included. Museums can take years to record a death, so every museum artist is also checked against Wikidata (matching name and birth year).
+Museum artists need a recorded birth year, no recorded death, and a birth year of 1925 or later. Museums can take years to record a death, so each one is also checked against Wikidata (matching name and birth year).
 
-## Refreshing the collection
+## Setting up DeviantArt
 
-The list of works lives in `catalog.js`. To pick up new acquisitions and drop artists who have since died, rebuild it (needs Python 3):
+DeviantArt needs a free developer key:
 
-```
-python tools/build_catalog.py --fresh
-```
+1. Sign in at [deviantart.com](https://www.deviantart.com/) (free account), then go to [deviantart.com/developers](https://www.deviantart.com/developers/) > **Register your Application**.
+2. Fill in a title (World Art Show) and a description, set **OAuth2 Grant Type** to *Client Credentials*, put `https://dylaneinsidler.github.io/World-Art-Show/` in the redirect and original URL whitelists, agree to the terms and save.
+3. Copy the **client_id** and **client_secret**.
+4. On GitHub, open this repository's **Settings** > **Secrets and variables** > **Actions** > **New repository secret**, and add `DEVIANTART_CLIENT_ID` and `DEVIANTART_CLIENT_SECRET`.
 
-It prints how many works, artists and countries it found, and any nationalities it didn't recognize (add those to `tools/countries.py`).
+The next update (within 3 hours, or right away from **Actions** > **Update the art** > **Run workflow**) adds DeviantArt's picks.
+
+## How it works
+
+`index.html` is the whole show. `tools/build_catalog.py` gathers the art list (`catalog.json`) from the sources above; `.github/workflows/update.yml` runs it every 3 hours and publishes both to GitHub Pages. On the computer, `launch.ps1` opens the website in its own browser window (with its own profile, so it never touches your normal browser); `launch.vbs` starts it without a console window flashing.
+
+To build the art list yourself (Python 3): `python tools/build_catalog.py`. It prints how many works, artists and countries it found, and any nationalities it didn't recognize (add those to `tools/countries.py`).

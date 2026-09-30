@@ -68,13 +68,14 @@ NAMES = set(NATIONALITY.values())
 
 # Misspellings seen in the collections.
 NATIONALITY.update({'ukranian': 'Ukraine', 'japanse': 'Japan', 'venuzuelan': 'Venezuela', 'america': 'United States',
-                    'faroeish': 'Faroe Islands'})
+                    'faroeish': 'Faroe Islands', 'botswanian': 'Botswana', 'shipibo': 'Peru'})
 
 # US museums often record Native artists by nation ("Diné", "Santa Clara Pueblo and American").
 NATIVE_US = re.compile(r"\b(?:[\w-]+ ){0,2}(?:Pueblo|Nation)\b|\b(?:Diné|Dine|Navajo|Hopi(?:-Tewa)?|Tewa|Acoma|Zuni|Zuñi|"
                        r"(?:Cheyenne River |Oglala |Sicangu |Hunkpapa )?Lakota|Dakota|Chickasaw|Cherokee|Choctaw|Seneca|"
                        r"(?:Match-e-be-nash-she-wish )?Pott?awatomi|Ojibwe|Anishinaabe|Ho-Chunk|Kiowa|Comanche|"
-                       r"Apache|Muscogee|Seminole|Osage|Blackfeet|Cheyenne|Arapaho|Shoshone|Paiute|Tlingit|"
+                       r"Apache|Muscogee|Seminole|Osage|Blackfeet|(?:Northern )?Cheyenne|(?:Northern )?Arapaho|Shoshone|Paiute|Tlingit|"
+                       r"Passamaquoddy|Penobscot|Piikani|Jemez|(?:Lac Courte Oreilles )?Ojibwe|"
                        r"Yup'ik|Iñupiaq|Inupiaq)\b")
 
 # Wikidata country names that differ from the ones above, and former countries (skipped: an artist born
@@ -105,7 +106,7 @@ WIKIDATA_NAMES = {
     'Kingdom of Afghanistan': '', 'Kingdom of Laos': '', 'Khmer Republic': '', 'Burma': 'Myanmar',
     'Swaziland': 'Eswatini', 'Republic of Macedonia': 'North Macedonia', 'Cape Verde': 'Cape Verde',
     'Czech Socialist Republic': '', 'Slovak Socialist Republic': '', 'Free State of Prussia': '',
-    'Commonwealth of Puerto Rico': 'Puerto Rico', 'Taiwan': 'Taiwan', 'Palestine': 'Palestine',
+    'Commonwealth of Puerto Rico': 'Puerto Rico', 'British Hong Kong': 'Hong Kong', 'Taiwan': 'Taiwan', 'Palestine': 'Palestine',
     # Country names as DeviantArt profiles spell them (the ISO list).
     'Korea, Republic of': 'South Korea', "Korea, Democratic People's Republic of": 'North Korea',
     'Viet Nam': 'Vietnam', 'Iran, Islamic Republic of': 'Iran', 'Taiwan, Province of China': 'Taiwan',
@@ -130,7 +131,7 @@ def country_from_label(label):
 
 def countries_from_nationality(text):
     """'Ghanaian' -> ['Ghana']; 'Chinese American' -> ['China', 'United States']; unknown -> []."""
-    text = NATIVE_US.sub('American', re.sub(r'\(.*?\)', ' ', text or ''))
+    text = NATIVE_US.sub('American', re.sub(r'\(.*?\)|\S+ Clan.*', ' ', text or ''))
     text = re.sub(r'\b(born|active|citizen|resident|living|works|lives)\b.*', '', text, flags=re.I)
     text = re.sub(r'\s+', ' ', text).strip(' ,;.')
     if not text:

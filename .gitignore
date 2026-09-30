@@ -3,3 +3,7 @@ desktop.ini
 Thumbs.db
 *.tmp
 __pycache__/
+
+# Built by GitHub every few hours (tools/build_catalog.py), not kept in the repository
+catalog.json
+.build-cache/
