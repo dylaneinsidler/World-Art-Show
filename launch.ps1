@@ -6,6 +6,7 @@ $showUrl = 'https://dylaneinsidler.github.io/World-Art-Show/'
 $windowShare = 0.84   # the window's share of the screen's width and height
 
 $ErrorActionPreference = 'SilentlyContinue'
+$here = Split-Path -Parent $MyInvocation.MyCommand.Path
 # The window's browser profile lives in AppData, not next to these files: thousands of small files that change
 # constantly, which would churn a synced folder like Google Drive. It also keeps the show's memory of what it
 # has already shown.
@@ -30,6 +31,17 @@ public static class WorldArtShowNative {
 "@
 # Measure the screen in real pixels, the same units the browser uses for its window.
 [WorldArtShowNative]::SetProcessDPIAware() | Out-Null
+
+# DeviantArt blocks GitHub's servers, so this PC collects DeviantArt's daily picks and sends them up
+# (toolsetch_deviantart.py). Start that in the background when the show opens, at most every 6 hours.
+$home_ = Join-Path $env:LOCALAPPDATA 'WorldArtShow'
+$lastRun = Join-Path $home_ 'deviantart-last-run.txt'
+$python = (Get-Command pyw.exe, pythonw.exe -ErrorAction SilentlyContinue | Select-Object -First 1).Source
+$collecting = Get-CimInstance Win32_Process -Filter "Name LIKE 'py%'" | Where-Object { $_.CommandLine -like '*fetch_deviantart.py*' }
+if ($python -and -not $collecting -and (Test-Path (Join-Path $home_ 'deviantart-key.txt')) -and
+        (-not (Test-Path $lastRun) -or (Get-Item $lastRun).LastWriteTime -lt (Get-Date).AddHours(-6))) {
+    Start-Process $python -WindowStyle Hidden -ArgumentList "`"$(Join-Path $here 'toolsetch_deviantart.py')`" --log"
+}
 
 # Already open: bring it forward instead of opening a second window.
 $running = Get-CimInstance Win32_Process -Filter "Name='chrome.exe' OR Name='msedge.exe'" |

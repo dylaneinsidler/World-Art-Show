@@ -10,8 +10,8 @@ Sources:
   - Minneapolis Institute of Art  https://search.artsmia.org/
   - SMK, National Gallery of Denmark  https://open.smk.dk/en/api
   - Wikidata + Wikimedia Commons  https://query.wikidata.org/
-  - DeviantArt (staff-picked Daily Deviations)  https://www.deviantart.com/developers/
-    Needs a free key: set DEVIANTART_CLIENT_ID and DEVIANTART_CLIENT_SECRET. Skipped without them.
+  - DeviantArt (staff-picked Daily Deviations), collected on the PC by tools/fetch_deviantart.py and merged
+    from deviantart.json
 """
 
 import argparse
@@ -44,8 +44,6 @@ MADE_SINCE = 2010        # only art made in this year or later
 BORN_AFTER = 1925        # older than ~100: treat as not living even if no death date is recorded
 MAX_PER_ARTIST = 20      # keeps a few very prolific artists from filling the catalog
 MIN_SIDE = 800           # skip images too small to look good on a large screen
-DEVIANTART_DAYS = 730    # how far back to collect Daily Deviations
-DEVIANTART_BATCH = 150   # days, and 10x as many artist profiles, fetched per run: the rest come in later runs
 
 # Photographs, film and video, recognised by what the work is made of ("gelatin silver print",
 # "inkjet print", "single-channel video"). Inkjet and pigment prints in museums are nearly always photographs.
@@ -226,59 +224,6 @@ def download_wikidata():
     return rows
 
 
-def deviantart_token():
-    cid, secret = os.environ.get('DEVIANTART_CLIENT_ID'), os.environ.get('DEVIANTART_CLIENT_SECRET')
-    if not cid or not secret:
-        return None
-    return fetch_json('https://www.deviantart.com/oauth2/token', form={
-        'grant_type': 'client_credentials', 'client_id': cid, 'client_secret': secret})['access_token']
-
-
-def download_deviantart(token, fresh):
-    """Daily Deviations: a few dozen pieces DeviantArt's staff pick each day. Past days never change, so each
-    day is fetched once and kept."""
-    days = load_cache('deviantart-days', fresh)
-    today = datetime.date.today()
-    todo = [str(today - datetime.timedelta(days=n)) for n in range(DEVIANTART_DAYS)]
-    todo = [d for d in todo if d not in days or d >= str(today - datetime.timedelta(days=1))][:DEVIANTART_BATCH]
-    if todo:
-        print(f'Downloading {len(todo)} days of DeviantArt Daily Deviations...', flush=True)
-    for n, date in enumerate(todo, 1):
-        d = fetch_json('https://www.deviantart.com/api/v1/oauth2/browse/dailydeviations?' + urllib.parse.urlencode(
-            {'date': date, 'mature_content': 'false', 'access_token': token}))
-        days[date] = [{k: x.get(k) for k in ('deviationid', 'url', 'title', 'category', 'category_path', 'author',
-                                              'content', 'published_time', 'is_mature')} for x in d.get('results', [])]
-        if n % 25 == 0 or n == len(todo):
-            print(f'  {n} of {len(todo)}', end='\r', flush=True)
-            save_cache('deviantart-days', days)
-        time.sleep(0.4)
-    if todo:
-        print()
-    return [x for day in days.values() for x in day]
-
-
-def deviantart_countries(token, usernames, fresh):
-    """An artist's country is on their DeviantArt profile, when they've filled it in."""
-    known = load_cache('deviantart-profiles', fresh, max_age_days=60)
-    todo = sorted(set(usernames) - known.keys())[:DEVIANTART_BATCH * 10]
-    if todo:
-        print(f'Looking up {len(todo)} DeviantArt artists...', flush=True)
-    for n, user in enumerate(todo, 1):
-        try:
-            p = fetch_json(f'https://www.deviantart.com/api/v1/oauth2/user/profile/{urllib.parse.quote(user)}?'
-                           + urllib.parse.urlencode({'access_token': token}))
-            known[user] = p.get('country') or ''
-        except urllib.error.HTTPError:
-            known[user] = ''
-        if n % 50 == 0 or n == len(todo):
-            print(f'  {n} of {len(todo)}', end='\r', flush=True)
-            save_cache('deviantart-profiles', known)
-        time.sleep(0.4)
-    if todo:
-        print()
-    return known
-
-
 # ---------------------------------------------------------------- normalizing
 
 def clean(s):
@@ -437,40 +382,6 @@ def from_wikidata(rows, unknown):
     return out
 
 
-def from_deviantart(rows, countries_by_user, unknown):
-    out, skipped = [], Counter()
-    for r in rows:
-        content, author = r.get('content') or {}, r.get('author') or {}
-        path = (r.get('category_path') or '').lower()
-        # Photography and writing are Daily Deviations too; only pictures made by hand or on a computer here.
-        if r.get('is_mature'):
-            skipped['mature'] += 1
-        elif not content.get('src'):
-            skipped['no picture (writing, video...)'] += 1
-        elif path.startswith(('photography', 'literature', 'artisan'))                 or re.search(r'photo|sculpt|craft', f"{path} {r.get('category') or ''}", re.I):
-            skipped['photography or craft'] += 1
-        elif author.get('username') not in countries_by_user:
-            skipped['artist not looked up yet'] += 1
-        else:
-            label = countries_by_user[author['username']]
-            country = country_from_label(label) if label else ''
-            if label and country is None:
-                unknown[('DeviantArt', label)] += 1
-            if not country:
-                skipped['no country on profile'] += 1
-                continue
-            year = time.gmtime(int(r['published_time'])).tm_year if r.get('published_time') else ''
-            out.append(item('DeviantArt', r['url'], content['src'], r.get('title'), str(year), author['username'],
-                            0, [country], content.get('width'), content.get('height'), path))
-    print(f'DeviantArt: {len(rows)} Daily Deviations, {len(out)} kept; left out: '
-          + ', '.join(f'{n} {why}' for why, n in skipped.most_common()))
-    if rows:
-        sample = rows[-1]
-        print(f"  e.g. category_path={sample.get('category_path')!r} category={sample.get('category')!r} "
-              f"content={'yes' if sample.get('content') else 'no'}")
-    return out
-
-
 # ---------------------------------------------------------------- checks
 
 def mia_images_that_load(items, fresh):
@@ -565,6 +476,18 @@ def dead_on_wikidata(items, fresh):
             if any(abs(b - it['born']) <= 1 for b in known.get(it['artist'], []))}
 
 
+def load_deviantart():
+    """DeviantArt blocks requests from GitHub's servers, so its picks are collected on the PC
+    (tools/fetch_deviantart.py) and sent up as deviantart.json. Merge the latest one, if there is one."""
+    path = HERE.parent / 'deviantart.json'
+    if not path.exists():
+        print('DeviantArt: no deviantart.json yet (tools/fetch_deviantart.py makes it on the PC).')
+        return []
+    d = json.loads(path.read_text(encoding='utf-8'))
+    print(f'DeviantArt: {len(d["works"])} pieces, collected {d["collected"]}')
+    return d['works']
+
+
 # ---------------------------------------------------------------- assembling
 
 def main():
@@ -586,18 +509,7 @@ def main():
     items = ([it for it in museums if (it['artist'], it['born']) not in dead]
              + add_commons_sizes(from_wikidata(cached('wikidata', age, download_wikidata), unknown), args.fresh))
 
-    try:
-        token = deviantart_token()
-        if token:
-            rows = download_deviantart(token, args.fresh)
-            users = deviantart_countries(token, {(r.get('author') or {}).get('username') for r in rows} - {None},
-                                         args.fresh)
-            items += from_deviantart(rows, users, unknown)
-        else:
-            print('DeviantArt skipped: no DEVIANTART_CLIENT_ID / DEVIANTART_CLIENT_SECRET set.')
-    except Exception as e:
-        # Days and profiles fetched before the failure are kept for next time; this list goes without.
-        print(f'DeviantArt failed ({e}); building without it this time.')
+    items += load_deviantart()
 
     # Drop images known to be too small, and exact duplicates (the same file listed twice).
     seen, kept = set(), []

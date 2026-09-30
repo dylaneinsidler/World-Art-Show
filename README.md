@@ -44,17 +44,16 @@ Museum artists need a recorded birth year, no recorded death, and a birth year o
 
 ## Setting up DeviantArt
 
-DeviantArt needs a free developer key:
+DeviantArt needs a free developer key, and it blocks requests from GitHub's servers, so the PC collects its picks and sends them up:
 
 1. Sign in at [deviantart.com](https://www.deviantart.com/) (free account), then go to [deviantart.com/developers](https://www.deviantart.com/developers/) > **Register your Application**.
 2. Fill in a title (World Art Show) and a description, set **OAuth2 Grant Type** to *Client Credentials*, put `https://dylaneinsidler.github.io/World-Art-Show/` in the redirect and original URL whitelists, agree to the terms and save.
-3. Copy the **client_id** and **client_secret**.
-4. On GitHub, open this repository's **Settings** > **Secrets and variables** > **Actions** > **New repository secret**, and add `DEVIANTART_CLIENT_ID` and `DEVIANTART_CLIENT_SECRET`.
+3. Run `install.ps1` (if you haven't), then open `%LOCALAPPDATA%\WorldArtShow\deviantart-key.txt` in Notepad, replace the two "paste ..." parts with your **client_id** and **client_secret**, and save.
 
-The next update (within 3 hours, or right away from **Actions** > **Update the art** > **Run workflow**) adds DeviantArt's picks.
+From then on the PC collects DeviantArt's newest picks when the show opens (at most every 6 hours) and once a day at 9 AM (or as soon as the PC is on after that), and sends them to GitHub, which adds them to the show. What it did is logged in `%LOCALAPPDATA%\WorldArtShow\deviantart.log`.
 
 ## How it works
 
-`index.html` is the whole show. `tools/build_catalog.py` gathers the art list (`catalog.json`) from the sources above; `.github/workflows/update.yml` runs it every 3 hours and publishes both to GitHub Pages. On the computer, `launch.ps1` opens the website in its own browser window (with its own profile, so it never touches your normal browser); `launch.vbs` starts it without a console window flashing.
+`index.html` is the whole show. `tools/build_catalog.py` gathers the art list (`catalog.json`) from the sources above and merges in `deviantart.json`, which `tools/fetch_deviantart.py` sends up from the PC; `.github/workflows/update.yml` runs the build every 3 hours (and whenever new DeviantArt picks arrive) and publishes the show to GitHub Pages. On the computer, `launch.ps1` opens the website in its own browser window (with its own profile, so it never touches your normal browser); `launch.vbs` starts it without a console window flashing.
 
 To build the art list yourself (Python 3): `python tools/build_catalog.py`. It prints how many works, artists and countries it found, and any nationalities it didn't recognize (add those to `tools/countries.py`).

@@ -1,5 +1,6 @@
 # Rebuilds the art list every few hours and publishes the show at https://dylaneinsidler.github.io/World-Art-Show/
 # The show fetches the newest list each time it opens, on the computer and on the iPad.
+# DeviantArt's picks arrive as deviantart.json, sent from the PC (tools/fetch_deviantart.py); that push runs this too.
 name: Update the art
 
 on:
@@ -31,7 +32,7 @@ jobs:
         with:
           python-version: '3.12'
 
-      # Slow lookups (death checks, image checks, DeviantArt days and profiles) carry over between runs.
+      # Slow lookups (death checks, image checks, image sizes) carry over between runs.
       - uses: actions/cache@v4
         with:
           path: .build-cache
@@ -41,8 +42,6 @@ jobs:
       - name: Build the art list
         env:
           WORLD_ART_SHOW_CACHE: .build-cache
-          DEVIANTART_CLIENT_ID: ${{ secrets.DEVIANTART_CLIENT_ID }}
-          DEVIANTART_CLIENT_SECRET: ${{ secrets.DEVIANTART_CLIENT_SECRET }}
         run: python tools/build_catalog.py --max-age 0
 
       - name: Put the site together
