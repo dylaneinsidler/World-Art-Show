@@ -2,7 +2,7 @@
 
 New art by living artists from around the world, a new piece every 60 seconds. On your computer it opens as its own window; on an iPad it's a home-screen app that works in portrait and landscape.
 
-- **Art made by hand or on a computer:** paintings, drawings, watercolors, prints, collages and digital art. No photography, and no photos of objects.
+- **Art made by hand or on a computer:** paintings, drawings, watercolors, prints, collages and digital art. No photography, no photos of objects, no AI-made images, no fan art or video game art.
 - **New work:** made in 2010 or later, by artists alive today.
 - **Travels the world:** each piece is picked by country first. The same artist doesn't come back until hundreds of others have had a turn, and pieces don't repeat.
 - **Same frame every time:** each piece is shown whole, never cropped, and the space around it is filled with a soft, blurred copy of the piece.
@@ -26,7 +26,7 @@ Right-click `install.ps1` > **Run with PowerShell**. This puts a **World Art Sho
 
 1. Open **https://dylaneinsidler.github.io/World-Art-Show/** in Safari.
 2. Tap the **Share** button > **Add to Home Screen** > **Add**.
-3. Open **World Art Show** from the home screen. It runs full screen, either way up, and keeps the screen awake.
+3. Open **World Art Show** from the home screen. It runs full screen and keeps the screen awake. Held sideways it shows landscape pieces; held upright, portrait pieces (near-square pieces show both ways). Turn it and a piece that no longer fits is replaced.
 
 Swipe left for the next piece, swipe right to go back, tap to pause.
 
@@ -37,10 +37,9 @@ On both: tap or click the link under a piece to open its page at the museum or o
 - [Art Institute of Chicago](https://www.artic.edu/open-access/public-api) (USA)
 - [Minneapolis Institute of Art](https://collections.artsmia.org/) (USA)
 - [SMK – National Gallery of Denmark](https://open.smk.dk/en) (Denmark)
-- [Wikidata](https://www.wikidata.org/) and [Wikimedia Commons](https://commons.wikimedia.org/): paintings, drawings, prints and digital art from around the world
-- [DeviantArt](https://www.deviantart.com/daily-deviations): the pieces its staff pick each day (Daily Deviations), leaving out photographs, AI-made images and fan art (judged by each piece's tags), once a key is set up (below)
+- [DeviantArt](https://www.deviantart.com/daily-deviations): the pieces its staff pick each day (Daily Deviations), once a key is set up (below). Judged by each piece's tags: only pieces tagged as painted, drawn or made digitally, and not photographs, AI-made images, fan art, video game or pixel art, crafts, or character-sale posts.
 
-Museum artists need a recorded birth year, no recorded death, and a birth year of 1925 or later. Museums can take years to record a death, so each one is also checked against Wikidata (matching name and birth year).
+Museum artists need a recorded birth year, no recorded death, and a birth year of 1925 or later. Museums can take years to record a death, so each one is also checked against [Wikidata](https://www.wikidata.org/) (matching name and birth year). Pieces whose only picture isn't the artwork itself (a photo of the gallery room) can be listed in `tools/leave_out.txt`.
 
 ## Setting up DeviantArt
 

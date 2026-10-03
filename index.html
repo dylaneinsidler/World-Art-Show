@@ -101,14 +101,23 @@
 const SECONDS_PER_PIECE = 60;
 const LOAD_TIMEOUT_MS = 40000;          // some museum servers take a while to make the image
 const CATALOG_REFRESH_MS = 60 * 60e3;   // while open, check for a newer art list every hour
-// How often an artist comes up, by where their work comes from. The museums' picks count fully; Wikimedia
-// Commons (uploaded by the public) and DeviantArt (staff picks from a huge site) count half, so neither
-// crowds out the museums.
-const SOURCE_WEIGHT = { 'Wikimedia Commons': 0.5, 'DeviantArt': 0.5 };
+// How often an artist comes up, by where their work comes from. The museums' picks count fully; DeviantArt
+// (staff picks from a huge site) counts half, so it doesn't crowd out the museums.
+const SOURCE_WEIGHT = { 'DeviantArt': 0.5 };
 
 const $ = id => document.getElementById(id);
 const statusEl = $('status');
 const touch = matchMedia('(pointer: coarse)').matches;
+
+// On the iPad the art matches the way it's held: landscape pieces when it's sideways, portrait pieces when
+// it's upright (near-square pieces fit both). The computer's window is always wide, so it shows every shape.
+const MATCH_SHAPE = touch;
+function shapeOf(w, h) {
+  if (!w || !h) return 'unknown';
+  return w / h > 1.05 ? 'landscape' : h / w > 1.05 ? 'portrait' : 'square';
+}
+function screenShape() { return innerWidth >= innerHeight ? 'landscape' : 'portrait'; }
+function fits(shape) { return !MATCH_SHAPE || shape === 'square' || shape === 'unknown' || shape === screenShape(); }
 
 // ------------------------------------------------------------------ the art list
 
@@ -132,7 +141,8 @@ function useCatalog(catalog) {
   artistWeight = new Map();
   for (const r of catalog.works) {
     const w = { artist: r[col.artist], country: r[col.country], title: r[col.title], date: r[col.date],
-                source: r[col.source], page: r[col.page], image: r[col.image] };
+                source: r[col.source], page: r[col.page], image: r[col.image],
+                shape: shapeOf(r[col.w], r[col.h]) };
     const country = w.country.split(' / ')[0];
     w.artistKey = w.artist + '|' + w.country;
     if (!byCountry.has(country)) byCountry.set(country, new Map());
@@ -195,24 +205,25 @@ function weightedItem(list, weightOf) {
   return list[list.length - 1];
 }
 
-function pickWork(avoid) {
+function pickWork(avoid, retried = false) {
   const recentA = new Set(recentArtists), recentC = new Set(recentCountries);
   const options = [];
   for (const [country, artists] of byCountry) {
     if (recentC.has(country)) continue;
-    const fresh = [...artists.keys()].filter(a => !recentA.has(a) && !avoid.has(a));
+    const fresh = [...artists.keys()].filter(a => !recentA.has(a) && !avoid.has(a) &&
+                                             artists.get(a).some(w => fits(w.shape) && !failed.has(w.image)));
     if (fresh.length) options.push({ country, fresh });
   }
   if (!options.length) {                 // everything is "recent": forget the history and start over
+    if (avoid.size || retried) return null;
     recentArtists = []; recentCountries = [];
-    return avoid.size ? null : pickWork(new Set());
+    return pickWork(avoid, true);
   }
   const choice = weightedItem(options, o => countryWeight.get(o.country));
   const artist = weightedItem(choice.fresh, a => artistWeight.get(a));
-  const artistWorks = byCountry.get(choice.country).get(artist);
-  const usable = artistWorks.filter(w => !failed.has(w.image));
+  const usable = byCountry.get(choice.country).get(artist).filter(w => fits(w.shape) && !failed.has(w.image));
   const unseen = usable.filter(w => !seen.has(w.page));
-  return randomItem(unseen.length ? unseen : usable.length ? usable : artistWorks);
+  return randomItem(unseen.length ? unseen : usable);
 }
 
 function loadImage(url) {
@@ -238,11 +249,16 @@ async function prepareNext() {
     const work = pickWork(avoid);
     if (!work) break;
     avoid.add(work.artistKey);
+    let img;
     try {
-      return { work, img: await loadImage(work.image) };
+      img = await loadImage(work.image);
     } catch {
       failed.add(work.image);
+      continue;
     }
+    // The art list's size can be missing or off; the loaded picture has the real shape.
+    work.shape = shapeOf(img.naturalWidth, img.naturalHeight);
+    if (fits(work.shape)) return { work, img };
   }
   return null;
 }
@@ -407,8 +423,24 @@ document.addEventListener('touchend', e => {
 });
 
 // Turning the iPad or resizing the window re-fits the art to the new frame. (Watching the page's size
-// catches every change; a turned iPad doesn't always send a resize event.)
-new ResizeObserver(() => slides.forEach(fitArt)).observe(document.body);
+// catches every change; a turned iPad doesn't always send a resize event.) On the iPad, turning it also
+// changes which pieces fit: the next one is picked again, and a piece that no longer fits is replaced
+// once the turn has settled.
+let lastShape = screenShape(), turnTimer;
+function onSizeChange() {
+  slides.forEach(fitArt);
+  if (!MATCH_SHAPE || screenShape() === lastShape) return;
+  lastShape = screenShape();
+  upcoming = null;
+  clearTimeout(turnTimer);
+  turnTimer = setTimeout(() => {
+    const current = history[place];
+    if (current && !fits(current.shape) && !paused) advance();
+  }, 700);
+}
+new ResizeObserver(onSizeChange).observe(document.body);
+window.addEventListener('resize', onSizeChange);              // also fires while the page is in the background
+window.addEventListener('orientationchange', onSizeChange);
 
 // Hide the mouse pointer when it's not moving.
 let idleTimer;

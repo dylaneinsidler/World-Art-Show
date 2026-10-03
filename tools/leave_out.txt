@@ -1,0 +1,5 @@
+# Pieces the show leaves out, one address per line (the link shown under the piece, starting with https://).
+# For pieces whose only picture isn't the artwork itself, which the art list's data can't tell.
+# Photos of the gallery room instead of the painting:
+https://www.artic.edu/artworks/243087
+https://www.artic.edu/artworks/242073

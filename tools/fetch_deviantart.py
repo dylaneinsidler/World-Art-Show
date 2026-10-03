@@ -113,57 +113,104 @@ def look_up_countries(access, usernames):
     return known
 
 
-# Tags that mean the piece isn't a hand-made or digital artwork by the artist: photographs, AI-made images, fan art
-# of existing cartoon, anime and game characters, and character-sale posts (adoptables, commissions, YCH auctions).
+# Tags (and titles) that mean the piece isn't a hand-made or digital artwork to show: photographs, AI-made images,
+# fan art of existing characters, video game art (pixel art included), crafts and 3D objects, tutorials and stock
+# resources, and character-sale posts (adoptables, commissions, YCH auctions).
 PHOTO_TAGS = re.compile(r'photo|cosplay|model|nikon|canon|sony|lens')
 AI_TAGS = re.compile(r'^(ai|aiart|ai_art|aiartwork|aigenerated|ai_generated|aiartcommunity|aiassisted|ai_assisted|'
                      r'aiartist|dalle|dall_e|dalle3|novelai|leonardoai|nightcafe|aiwork|aiimage|generativeai|sdxl|flux|'
                      r'comfyui)$|midjourney|stablediffusion|synthography')
-FANART_TAGS = re.compile(r'fanart|fan_art|anime|manga|genshin|pokemon|mlp|mylittlepony|videogame|marvel|dc_comics|'
-                         r'starwars|harrypotter|zelda|sonic|naruto|onepiece|honkai|vtuber|fandom|bioshock|fnaf|'
-                         r'undertale|hazbin|helluva|overwatch|minecraft|disney|transformers|spiderman|batman|'
-                         r'warhammer|splatoon|kirby|touhou|hololive|chibi|fursona|furry|anthro|kemono')
+AI_NAME = re.compile(r'(^|[-_])ai([-_]|$)|aiart|ai$', re.I)
+FANART_TAGS = re.compile(r'fanart|fan_art|anime|manga|genshin|pokemon|mlp|mylittlepony|marvel|dc_comics|starwars|'
+                         r'harrypotter|zelda|sonic|naruto|onepiece|honkai|vtuber|fandom|bioshock|fnaf|undertale|'
+                         r'deltarune|hazbin|helluva|overwatch|minecraft|disney|transformers|spiderman|batman|warhammer|'
+                         r'splatoon|kirby|touhou|hololive|chibi|fursona|furry|anthro|kemono|technoblade|dreamsmp|lotr|'
+                         r'lordoftherings|tolkien|witcher|eldenring|darksouls|finalfantasy|skyrim|mario|dragonball|'
+                         r'sailormoon|hollowknight|arcane|leagueoflegends|valorant|jujutsu|demonslayer|evangelion|'
+                         r'ghibli|doctorwho|startrek|digimon|dccomics|justiceleague|aquaman|superman|wonderwoman|'
+                         r'avengers|xmen|deadpool|harleyquinn|tmnt')
+FANART_TITLE = re.compile(r'\b(LOTR|Lord of the Rings|Star Wars|Pok[eé]mon|Zelda|Genshin|Marvel|Batman|Spider-?Man|'
+                          r'Harry Potter|Witcher|Elden Ring|Dark Souls|Final Fantasy|Skyrim|Minecraft|Overwatch|'
+                          r'Fortnite|Mario|Sonic|Naruto|One Piece|Dragon Ball|Sailor Moon|Hollow Knight|Undertale|'
+                          r'League of Legends|Valorant|Warhammer|Aquaman|Superman|Wonder Woman|Avengers|Deadpool|'
+                          r'Fan ?art)\b', re.I)
+GAME_TAGS = re.compile(r'^(game|games|gaming|gamer|rpg|jrpg|mmorpg|arpg|rpgmaker|steam|playstation|nintendo|xbox|'
+                       r'twitch|fortnite|roblox|gacha|gachalife|osu|8bit|16bit|32bit|sprite|sprites|pixel|pixels|'
+                       r'pixelated|pixilart|voxel|voxelart|isometric)$|videogame|gameart|game_art|gamedev|indiegame|'
+                       r'indiedev|pixelart|pixel_art|spriteart|spritework')
+OBJECT_TAGS = re.compile(r'crochet|knit|amigurumi|craft|sculpt|assemblage|foundobject|figurine|polymerclay|^clay$|'
+                         r'ceramic|pottery|jewel|doll|plush|embroider|sewing|quilt|tutorial|howto|^guide$|^stock$|'
+                         r'stockimage|resource|texture|brushes|template')
 SALE_TAGS = re.compile(r'adopt|commission|^ych|auction|refsheet|reference_?sheet|forsale|^sale$|^closed$|^open$|'
                        r'^f2u$|^p2u$|freebase|^base$|pixelbase')
 # In titles, sales posts write "OPEN"/"CLOSED" in capitals or brackets; "Open Water" is just a title.
 SALE_TITLE = re.compile(r'(?i:\b(ych|adopts?|adoptables?|commissions?|auction|ota|f2u|p2u|for sale)\b)|'
                         r'\b(OPEN|CLOSED)\b|(?i:[\[(]\s*(open|closed)\s*[\])])')
-AI_NAME = re.compile(r'(^|[-_])ai([-_]|$)|aiart|ai$', re.I)
+# A piece only gets in when a tag says how it was made: painted, drawn, printed or made digitally. Pieces tagged
+# only with subjects ("sea waves", "glamour") are too often photographs.
+MEDIUM_TAGS = re.compile(r'paint|acrylic|^oil|oilpaint|oils$|watercol|aquarel|gouache|^ink|inking|ink$|penandink|^pen$|'
+                         r'pencil|graphite|charcoal|pastel|drawing|^draw|sketch|canvas|traditional|illustrat|marker|'
+                         r'copic|crayon|tempera|mixedmedia|collage|linocut|woodcut|etching|lithograph|screenprint|'
+                         r'printmaking|lineart|digitalart|digital_art|digitalpaint|digitalillustration|procreate|krita|'
+                         r'clipstudio|csp|artrage|ibispaint|medibang|paintool|fantasyart|conceptart|characterdesign|'
+                         r'comicart|cartoon|vectorart|fractal|blender|zbrush|3dart|3drender|matte')
+WRITING_TAGS = re.compile(r'^(poetry|poem|poems|freeverse|spokenword|prose|story|stories|literature|writing|haiku|'
+                          r'quote|quotes|shortstory|flashfiction)$')
+
+
+def skip_reason(r, t):
+    """Why a Daily Deviation shouldn't be shown, judged by its tags and title; None if it can be."""
+    title, user = r.get('title') or '', (r.get('author') or {}).get('username') or ''
+    if r.get('is_mature'):
+        return 'mature'
+    if not (r.get('content') or {}).get('src'):
+        return 'not a picture (writing, video...)'
+    if t is None:
+        return 'tags not looked up yet'
+    if not t:
+        return 'no tags to tell what it is'
+    if any(PHOTO_TAGS.search(x) for x in t):
+        return 'photography'
+    if any(WRITING_TAGS.search(x) for x in t):
+        return 'writing'
+    if not any(MEDIUM_TAGS.search(x) for x in t):
+        return 'no tag saying it was painted, drawn or made digitally'
+    if AI_NAME.search(user) or any(AI_TAGS.search(x) for x in t):
+        return 'AI-made'
+    if any(FANART_TAGS.search(x) for x in t) or FANART_TITLE.search(title):
+        return 'fan art'
+    if any(GAME_TAGS.search(x) for x in t):
+        return 'video game or pixel art'
+    if any(OBJECT_TAGS.search(x) for x in t):
+        return 'crafts, objects, tutorials, stock'
+    if any(SALE_TAGS.search(x) for x in t) or SALE_TITLE.search(title):
+        return 'character sales (adoptables, commissions)'
+    return None
 
 
 def pick(rows, tags, countries):
     """Keeps hand-made and digital art, by artists whose country is known."""
     out, skipped, unknown = [], Counter(), Counter()
     for r in rows:
-        content, author = r.get('content') or {}, r.get('author') or {}
-        user, t = author.get('username') or '', tags.get(r.get('deviationid'))
-        if r.get('is_mature'):
-            skipped['mature'] += 1
-        elif not content.get('src'):
-            skipped['not a picture (writing, video...)'] += 1
-        elif t is None:
-            skipped['tags not looked up yet'] += 1
-        elif any(PHOTO_TAGS.search(x) for x in t):
-            skipped['photography'] += 1
-        elif AI_NAME.search(user) or any(AI_TAGS.search(x) for x in t):
-            skipped['AI-made'] += 1
-        elif any(FANART_TAGS.search(x) for x in t):
-            skipped['fan art'] += 1
-        elif any(SALE_TAGS.search(x) for x in t) or SALE_TITLE.search(r.get('title') or ''):
-            skipped['character sales (adoptables, commissions)'] += 1
-        elif user not in countries:
-            skipped['artist not looked up yet'] += 1
-        else:
+        t = tags.get(r.get('deviationid'))
+        user = (r.get('author') or {}).get('username') or ''
+        reason = skip_reason(r, t)
+        if not reason and user not in countries:
+            reason = 'artist not looked up yet'
+        if not reason:
             label = countries[user]
             country = country_from_label(label) if label and label != 'Unknown' else ''
             if label and label != 'Unknown' and country is None:
                 unknown[label] += 1
             if not country:
-                skipped['no country on profile'] += 1
-                continue
-            year = time.gmtime(int(r['published_time'])).tm_year if r.get('published_time') else ''
-            out.append(item('DeviantArt', r['url'], content['src'], r.get('title'), str(year), user,
-                            0, [country], content.get('width'), content.get('height'), ' '.join(t)))
+                reason = 'no country on profile'
+        if reason:
+            skipped[reason] += 1
+            continue
+        content = r['content']
+        year = time.gmtime(int(r['published_time'])).tm_year if r.get('published_time') else ''
+        out.append(item('DeviantArt', r['url'], content['src'], r.get('title'), str(year), user,
+                        0, [country], content.get('width'), content.get('height'), ' '.join(t)))
     print(f'{len(rows)} Daily Deviations, {len(out)} kept. Left out: '
           + ', '.join(f'{n} {why}' for why, n in skipped.most_common()))
     if unknown:

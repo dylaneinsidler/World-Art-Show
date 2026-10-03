@@ -1,4 +1,4 @@
-"""Builds catalog.json: recent hand-made and digital art by living artists, from museums, Wikidata and DeviantArt.
+"""Builds catalog.json: recent hand-made and digital art by living artists, from museums and DeviantArt.
 
 GitHub runs this every few hours (.github/workflows/update.yml) and publishes the result with the show, so
 the show has the newest list every time it opens. To run it yourself:
@@ -9,7 +9,8 @@ Sources:
   - Art Institute of Chicago      https://api.artic.edu/docs/
   - Minneapolis Institute of Art  https://search.artsmia.org/
   - SMK, National Gallery of Denmark  https://open.smk.dk/en/api
-  - Wikidata + Wikimedia Commons  https://query.wikidata.org/
+  - Wikidata (https://query.wikidata.org/) only to check that artists are still alive. Its own artworks aren't used:
+    too many of their pictures are snapshots of a wall, a street or a gallery room.
   - DeviantArt (staff-picked Daily Deviations), collected on the PC by tools/fetch_deviantart.py and merged
     from deviantart.json
 """
@@ -31,7 +32,7 @@ from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from countries import country_from_label, countries_from_nationality
+from countries import countries_from_nationality
 
 HERE = Path(__file__).resolve().parent
 OUT = HERE.parent / 'catalog.json'
@@ -188,42 +189,6 @@ def download_smk():
     return rows
 
 
-# Kinds of artwork asked for on Wikidata: hand-made and digital pictures only. (Its sculpture, installations
-# and murals are photos taken on the street, which look like photographs rather than art.)
-WIKIDATA_KINDS = {
-    'painting': '?work wdt:P31 wd:Q3305213 .',
-    'drawing': 'VALUES ?k { wd:Q93184 wd:Q18761202 wd:Q178659 } ?work wdt:P31 ?k .',   # + watercolor, illustration
-    'print': '?work wdt:P31 wd:Q11060274 .',
-    # digital art, digital painting, computer, generative, pixel and fractal art, as a type or a genre
-    'digital art': 'VALUES ?k { wd:Q860372 wd:Q1225029 wd:Q1376265 wd:Q1502032 wd:Q811179 wd:Q777696 } '
-                   '{ ?work wdt:P31 ?k } UNION { ?work wdt:P136 ?k }',
-}
-WIKIDATA_QUERY = '''
-SELECT ?work ?workLabel ?image ?made ?creator ?creatorLabel ?born ?country ?countryLabel WHERE {
-  %(kind)s
-  ?work wdt:P571 ?made . FILTER(?made >= "%(since)d-01-01"^^xsd:dateTime)
-  ?work wdt:P18 ?image ; wdt:P170 ?creator .
-  ?creator wdt:P31 wd:Q5 ; wdt:P569 ?born .
-  FILTER(?born >= "%(born)d-01-01"^^xsd:dateTime)
-  FILTER NOT EXISTS { ?creator wdt:P570 [] }
-  ?creator wdt:P27 ?country .
-  SERVICE wikibase:label { bd:serviceParam wikibase:language "en,mul". }
-}'''
-
-
-def download_wikidata():
-    rows = []
-    for name, kind in WIKIDATA_KINDS.items():
-        query = WIKIDATA_QUERY % {'kind': kind, 'since': MADE_SINCE, 'born': BORN_AFTER}
-        url = 'https://query.wikidata.org/sparql?' + urllib.parse.urlencode({'query': query, 'format': 'json'})
-        d = fetch_json(url, headers={'Accept': 'application/sparql-results+json'})
-        found = [{k: v['value'] for k, v in b.items()} | {'kind': name} for b in d['results']['bindings']]
-        print(f'  Wikidata {name}: {len(found)} rows', flush=True)
-        rows += found
-        time.sleep(2)
-    return rows
-
-
 # ---------------------------------------------------------------- normalizing
 
 def clean(s):
@@ -260,7 +225,12 @@ FLAT_ART = re.compile(r'painting|drawing|print|works? on paper|collage|calligrap
                       r'etching|lithograph|woodcut|linocut|serigraph|screenprint|engraving|aquatint|intaglio|sketch', re.I)
 NOT_FLAT = re.compile(r'photo|video|film|installation|performance|sculpture|statue|relief|ceramic|glass|wood(?!cut)|'
                       r'metal|lacquer|bamboo|textile|jewel|furniture|costume|multiple|object|wall piece|'
-                      r'matri(x|ces)|book|publication|judaica|architecture|time-based', re.I)
+                      r'matri(x|ces)|book|publication|judaica|architecture|time-based|'
+                      r'computer print|digital print|laser print', re.I)   # museum digital prints are nearly all photos
+MAX_ASPECT = 3.5         # panoramas and scrolls this much wider (or taller) than the screen show as thin strips
+# Pieces whose only image isn't the artwork itself (e.g. a photo of the gallery room), found by looking:
+# one address per line in leave_out.txt.
+LEAVE_OUT = HERE / 'leave_out.txt'
 
 
 def flat_art(kind):
@@ -354,34 +324,6 @@ def from_smk(rows, unknown):
     return out
 
 
-def from_wikidata(rows, unknown):
-    by_work = {}
-    for r in rows:
-        born = int(r['born'][:4]) if r.get('born', '')[:4].isdigit() else 0
-        if born < BORN_AFTER or r['kind'] not in WIKIDATA_KINDS or not made_since((r.get('made') or '')[:4]):
-            continue
-        w = by_work.setdefault(r['work'], {**r, 'countries': []})
-        country = country_from_label(r.get('countryLabel', ''))
-        if country is None:
-            unknown[('Wikidata', r.get('countryLabel', ''))] += 1
-        elif country and country not in w['countries']:
-            w['countries'].append(country)
-    out = []
-    for w in by_work.values():
-        title = w.get('workLabel', '')
-        # Unlabelled items come back as their Q-number; the artwork's file name reads better than that.
-        file = urllib.parse.unquote(w['image'].rsplit('/', 1)[-1])
-        if re.fullmatch(r'Q\d+', title):
-            title = re.sub(r'\.\w+$', '', file).replace('_', ' ')
-        if not w['countries'] or re.fullmatch(r'Q\d+', w.get('creatorLabel', '')):
-            continue
-        commons = 'https://commons.wikimedia.org/wiki/File:' + urllib.parse.quote(file.replace(' ', '_'))
-        image = 'https://commons.wikimedia.org/wiki/Special:FilePath/' + urllib.parse.quote(file) + '?width=1920'
-        out.append(item('Wikimedia Commons', commons, image, title, (w.get('made') or '')[:4],
-                        w['creatorLabel'], int(w['born'][:4]), sorted(w['countries']), 0, 0, w['kind']))
-    return out
-
-
 # ---------------------------------------------------------------- checks
 
 def mia_images_that_load(items, fresh):
@@ -408,37 +350,6 @@ def mia_images_that_load(items, fresh):
                     known[url] = ok
         save_cache('mia-images', known)
     return [it for it in items if known.get(it['image'], True)]
-
-
-def add_commons_sizes(items, fresh):
-    """Wikidata doesn't say how big an image is; ask Commons, 50 files at a time."""
-    known = load_cache('commons-sizes', fresh)
-
-    def name(it):
-        return urllib.parse.unquote(it['page'].rsplit('File:', 1)[1]).replace('_', ' ')
-
-    files = sorted({name(it) for it in items} - known.keys())
-    if files:
-        print(f'Looking up {len(files)} image sizes on Wikimedia Commons...', flush=True)
-    for i in range(0, len(files), 50):
-        d = fetch_json('https://commons.wikimedia.org/w/api.php', form={
-            'action': 'query', 'titles': '|'.join('File:' + f for f in files[i:i + 50]), 'prop': 'imageinfo',
-            'iiprop': 'size', 'format': 'json', 'formatversion': 2})
-        names = {n['to']: n['from'] for n in d['query'].get('normalized', [])}
-        for f in files[i:i + 50]:
-            known.setdefault(f, [0, 0])
-        for p in d['query']['pages']:
-            info = (p.get('imageinfo') or [{}])[0]
-            known[names.get(p['title'], p['title']).removeprefix('File:')] = [info.get('width', 0), info.get('height', 0)]
-        time.sleep(0.5)
-    if files:
-        save_cache('commons-sizes', known)
-    kept = []
-    for it in items:
-        it['w'], it['h'] = known.get(name(it), [0, 0])
-        if it['w'] and it['h']:   # no size means the file is gone
-            kept.append(it)
-    return kept
 
 
 DEATHS_QUERY = '''
@@ -506,15 +417,18 @@ def main():
     if dead:
         print(f'Leaving out {len(dead)} artists Wikidata records as having died, e.g. '
               + ', '.join(sorted(a for a, _ in dead)[:8]))
-    items = ([it for it in museums if (it['artist'], it['born']) not in dead]
-             + add_commons_sizes(from_wikidata(cached('wikidata', age, download_wikidata), unknown), args.fresh))
-
+    items = [it for it in museums if (it['artist'], it['born']) not in dead]
     items += load_deviantart()
 
-    # Drop images known to be too small, and exact duplicates (the same file listed twice).
+    # Drop images known to be too small or too long and thin, exact duplicates (the same file listed twice),
+    # and pieces on the leave-out list.
+    leave_out = {line.strip() for line in LEAVE_OUT.read_text(encoding='utf-8').splitlines()
+                 if line.strip() and not line.startswith('#')} if LEAVE_OUT.exists() else set()
     seen, kept = set(), []
     for it in items:
-        if (it['w'] and it['h'] and max(it['w'], it['h']) < MIN_SIDE) or it['image'] in seen:
+        w, h = it['w'], it['h']
+        if (w and h and (max(w, h) < MIN_SIDE or max(w, h) / min(w, h) > MAX_ASPECT)) \
+                or it['image'] in seen or it['page'] in leave_out:
             continue
         seen.add(it['image'])
         kept.append(it)
@@ -530,7 +444,7 @@ def main():
     final = sorted((it for works in per_artist.values() for it in works),
                    key=lambda it: (it['country'], it['artist'], it['title']))
 
-    fields = ['artist', 'country', 'title', 'date', 'source', 'page', 'image']
+    fields = ['artist', 'country', 'title', 'date', 'source', 'page', 'image', 'w', 'h']   # w, h: image shape (0 = unknown)
     catalog = {'built': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC'),
                'fields': fields, 'works': [[it[f] for f in fields] for it in final]}
     OUT.write_text(json.dumps(catalog, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
