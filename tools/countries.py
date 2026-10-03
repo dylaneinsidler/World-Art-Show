@@ -115,7 +115,7 @@ WIKIDATA_NAMES = {
     'Moldova, Republic of': 'Moldova', 'Macedonia, the Former Yugoslav Republic of': 'North Macedonia',
     "Lao People's Democratic Republic": 'Laos', 'Brunei Darussalam': 'Brunei', 'Libyan Arab Jamahiriya': 'Libya',
     'Palestinian Territory, Occupied': 'Palestine', 'Congo, the Democratic Republic of the': 'Democratic Republic of the Congo',
-    'Macedonia': 'North Macedonia', 'Antarctica': '', 'USA': 'United States', 'UK': 'United Kingdom', 'Great Britain': 'United Kingdom', 'Holland': 'Netherlands',
+    'Macedonia': 'North Macedonia', 'Antarctica': '', 'French Polynesia': 'French Polynesia', 'USA': 'United States', 'UK': 'United Kingdom', 'Great Britain': 'United Kingdom', 'Holland': 'Netherlands',
 }
 
 

@@ -1,5 +1,7 @@
-"""Collects DeviantArt's Daily Deviations (the pieces its staff pick each day) and sends them to GitHub as
-deviantart.json, where the art list build merges them in.
+"""Collects art from DeviantArt and sends it to GitHub as deviantart.json, where the art list build merges it in:
+  - Daily Deviations: the pieces DeviantArt's staff pick each day (the last two years);
+  - the newest work (the last 12 months) of the artists whose staff-picked piece passed the filters below,
+    so new art keeps arriving from artists who have been vetted once.
 
 This runs on the PC because DeviantArt blocks requests from GitHub's servers. launch.ps1 starts it when the show
 opens (at most every 6 hours), and install.ps1 sets up a daily run. It needs the free DeviantArt key, saved in
@@ -35,7 +37,11 @@ DAYS = 730      # how far back to collect Daily Deviations
 DAYS_PER_RUN = 150
 TAGS_PER_RUN = 2000     # pieces, 10 per request
 PROFILES_PER_RUN = 300
+GALLERIES_PER_RUN = 150 # artists whose newest work is checked per run; each is checked again every few days
+GALLERY_RECHECK_DAYS = 3
+GALLERY_DAYS = 365      # how recent an artist's own uploads have to be
 PAUSE = 1.0             # seconds between requests
+FIELDS = ('deviationid', 'url', 'title', 'author', 'content', 'published_time', 'is_mature')
 
 
 def read_key():
@@ -72,8 +78,7 @@ def download_days(access):
     print(f'Fetching {len(todo)} days of Daily Deviations ({len(days)} days already kept)...', flush=True)
     for n, date in enumerate(todo, 1):
         d = api(access, 'browse/dailydeviations', date=date, mature_content='false')
-        days[date] = [{k: x.get(k) for k in ('deviationid', 'url', 'title', 'author', 'content', 'published_time',
-                                              'is_mature')} for x in d.get('results', [])]
+        days[date] = [{k: x.get(k) for k in FIELDS} for x in d.get('results', [])]
         if n % 25 == 0 or n == len(todo):
             save_cache('deviantart-days', days)
         time.sleep(PAUSE)
@@ -97,6 +102,39 @@ def look_up_tags(access, rows):
     return known
 
 
+def followed_artists(rows, tags, countries):
+    """Artists with a staff-picked piece that passes the filters, and a country on their profile."""
+    return sorted({r['author']['username'] for r in rows
+                   if (r.get('author') or {}).get('username')
+                   and countries.get(r['author']['username']) not in (None, '', 'Unknown')
+                   and not skip_reason(r, tags.get(r.get('deviationid')))})
+
+
+def download_galleries(access, artists):
+    """Each followed artist's newest uploads, checked again every few days (the least recently checked first).
+    Pieces seen before are kept until they're older than GALLERY_DAYS."""
+    galleries = load_cache('deviantart-galleries', False)
+    now = time.time()
+    recent = lambda x: x.get('published_time') and now - int(x['published_time']) < GALLERY_DAYS * 86400
+    due = [a for a in sorted(artists, key=lambda a: galleries.get(a, {}).get('checked', 0))
+           if now - galleries.get(a, {}).get('checked', 0) > GALLERY_RECHECK_DAYS * 86400][:GALLERIES_PER_RUN]
+    print(f'Checking the newest work of {len(due)} artists ({len(artists)} followed)...', flush=True)
+    for n, user in enumerate(due, 1):
+        kept = {x['deviationid']: x for x in galleries.get(user, {}).get('pieces', [])}
+        try:
+            d = api(access, 'gallery/all', username=user, limit=12, mature_content='false')
+            for x in d.get('results', []):
+                if recent(x):
+                    kept[x['deviationid']] = {k: x.get(k) for k in FIELDS}
+        except urllib.error.HTTPError:
+            pass   # account gone or gallery hidden: keep what we had, try again next time
+        galleries[user] = {'checked': now, 'pieces': [x for x in kept.values() if recent(x)]}
+        if n % 25 == 0 or n == len(due):
+            save_cache('deviantart-galleries', galleries)
+        time.sleep(PAUSE)
+    return [x for user in artists for x in galleries.get(user, {}).get('pieces', []) if recent(x)]
+
+
 def look_up_countries(access, usernames):
     """An artist's country is on their DeviantArt profile, when they've filled it in. Checked again every 60 days."""
     known = load_cache('deviantart-profiles', False, max_age_days=60)
@@ -116,7 +154,8 @@ def look_up_countries(access, usernames):
 # Tags (and titles) that mean the piece isn't a hand-made or digital artwork to show: photographs, AI-made images,
 # fan art of existing characters, video game art (pixel art included), crafts and 3D objects, tutorials and stock
 # resources, and character-sale posts (adoptables, commissions, YCH auctions).
-PHOTO_TAGS = re.compile(r'photo|cosplay|model|nikon|canon|sony|lens')
+# (Glamour and boudoir are photography genres; DAZ Studio and Poser make posed 3D figures that look like photos.)
+PHOTO_TAGS = re.compile(r'photo|cosplay|model|nikon|canon|sony|lens|glamour|boudoir|^daz|poser')
 AI_TAGS = re.compile(r'^(ai|aiart|ai_art|aiartwork|aigenerated|ai_generated|aiartcommunity|aiassisted|ai_assisted|'
                      r'aiartist|dalle|dall_e|dalle3|novelai|leonardoai|nightcafe|aiwork|aiimage|generativeai|sdxl|flux|'
                      r'comfyui)$|midjourney|stablediffusion|synthography')
@@ -128,7 +167,8 @@ FANART_TAGS = re.compile(r'fanart|fan_art|anime|manga|genshin|pokemon|mlp|mylitt
                          r'lordoftherings|tolkien|witcher|eldenring|darksouls|finalfantasy|skyrim|mario|dragonball|'
                          r'sailormoon|hollowknight|arcane|leagueoflegends|valorant|jujutsu|demonslayer|evangelion|'
                          r'ghibli|doctorwho|startrek|digimon|dccomics|justiceleague|aquaman|superman|wonderwoman|'
-                         r'avengers|xmen|deadpool|harleyquinn|tmnt')
+                         r'avengers|xmen|deadpool|harleyquinn|tmnt|gameofthrones|houseofthedragon|cartoonnetwork|'
+                         r'overthegardenwall')
 FANART_TITLE = re.compile(r'\b(LOTR|Lord of the Rings|Star Wars|Pok[eé]mon|Zelda|Genshin|Marvel|Batman|Spider-?Man|'
                           r'Harry Potter|Witcher|Elden Ring|Dark Souls|Final Fantasy|Skyrim|Minecraft|Overwatch|'
                           r'Fortnite|Mario|Sonic|Naruto|One Piece|Dragon Ball|Sailor Moon|Hollow Knight|Undertale|'
@@ -152,8 +192,8 @@ MEDIUM_TAGS = re.compile(r'paint|acrylic|^oil|oilpaint|oils$|watercol|aquarel|go
                          r'pencil|graphite|charcoal|pastel|drawing|^draw|sketch|canvas|traditional|illustrat|marker|'
                          r'copic|crayon|tempera|mixedmedia|collage|linocut|woodcut|etching|lithograph|screenprint|'
                          r'printmaking|lineart|digitalart|digital_art|digitalpaint|digitalillustration|procreate|krita|'
-                         r'clipstudio|csp|artrage|ibispaint|medibang|paintool|fantasyart|conceptart|characterdesign|'
-                         r'comicart|cartoon|vectorart|fractal|blender|zbrush|3dart|3drender|matte')
+                         r'clipstudio|csp|artrage|ibispaint|medibang|paintool|comicart|vectorart|fractal|blender|'
+                         r'zbrush|3dart|3drender')   # style words (fantasyart, conceptart...) don't say how it was made
 WRITING_TAGS = re.compile(r'^(poetry|poem|poems|freeverse|spokenword|prose|story|stories|literature|writing|haiku|'
                           r'quote|quotes|shortstory|flashfiction)$')
 
@@ -263,6 +303,11 @@ def main():
     rows = download_days(access)
     tags = look_up_tags(access, rows)
     countries = look_up_countries(access, {(r.get('author') or {}).get('username') for r in rows} - {None})
+    # Then the newest work of the artists those picks found; their pieces go through the same filters.
+    staff_picked = {r.get('deviationid') for r in rows}
+    rows += [x for x in download_galleries(access, followed_artists(rows, tags, countries))
+             if x['deviationid'] not in staff_picked]
+    tags = look_up_tags(access, rows)
     works = pick(rows, tags, countries)
     fields = ['artist', 'country', 'title', 'date', 'source', 'page', 'image', 'w', 'h']
     works = sorted(({f: w[f] for f in fields} for w in works), key=lambda w: w['page'])

@@ -37,7 +37,7 @@ On both: tap or click the link under a piece to open its page at the museum or o
 - [Art Institute of Chicago](https://www.artic.edu/open-access/public-api) (USA)
 - [Minneapolis Institute of Art](https://collections.artsmia.org/) (USA)
 - [SMK – National Gallery of Denmark](https://open.smk.dk/en) (Denmark)
-- [DeviantArt](https://www.deviantart.com/daily-deviations): the pieces its staff pick each day (Daily Deviations), once a key is set up (below). Judged by each piece's tags: only pieces tagged as painted, drawn or made digitally, and not photographs, AI-made images, fan art, video game or pixel art, crafts, or character-sale posts.
+- [DeviantArt](https://www.deviantart.com/daily-deviations): the pieces its staff pick each day (Daily Deviations), plus the last 12 months of new work by those artists (each one's gallery is checked every few days), once a key is set up (below). Judged by each piece's tags: only pieces tagged as painted, drawn or made digitally, and not photographs, AI-made images, fan art, video game or pixel art, crafts, or character-sale posts.
 
 Museum artists need a recorded birth year, no recorded death, and a birth year of 1925 or later. Museums can take years to record a death, so each one is also checked against [Wikidata](https://www.wikidata.org/) (matching name and birth year). Pieces whose only picture isn't the artwork itself (a photo of the gallery room) can be listed in `tools/leave_out.txt`.
 
