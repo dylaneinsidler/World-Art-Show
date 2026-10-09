@@ -3,6 +3,12 @@
 What changed in each version of World Art Show, newest first. Every version has pictures in `screenshots\v<version>\`:
 after a change, bump `VERSION`, add it here, take a picture of both screens while it's open, and commit.
 
+## 2.5 (October 9, 2026)
+
+- **Never stalls when a museum's images stop loading:** the Art Institute of Chicago's image server started refusing
+  everyone (403), and the show could give up on "Getting the newest art". Now a museum whose images fail three times
+  in a row is set aside for half an hour, and the show carries on with the others.
+
 ## 2.4 (October 9, 2026)
 
 - **"Don't show again"**: on the computer's right screen (for the app, the Morning and Night Screens and the tester), and

@@ -259,6 +259,11 @@ function save(key, value) {
 const seen = new Set(load('seen', []));                // pages already shown, so pieces don't repeat
 let recentArtists = load('recentArtists', []);          // no artist twice until many others have had a turn
 let recentCountries = load('recentCountries', []);      // and no country twice in a row
+// A museum whose image server keeps refusing (on October 9 the Art Institute of Chicago's turned everyone away) is
+// set aside for half an hour, so the show goes on with the others instead of stalling.
+const hostFails = new Map(), hostDownUntil = new Map();
+const hostOf = url => { try { return new URL(url).host; } catch { return ''; } };
+const usableImage = w => !failed.has(w.image) && !((hostDownUntil.get(hostOf(w.image)) || 0) > Date.now());
 const failed = new Set();                               // images that wouldn't load this session
 
 function remember(work) {
@@ -288,7 +293,7 @@ function pickWork(avoid, retried = false) {
   for (const [country, artists] of byCountry) {
     if (recentC.has(country)) continue;
     const fresh = [...artists.keys()].filter(a => !recentA.has(a) && !avoid.has(a) &&
-                                             artists.get(a).some(w => fits(w.shape) && !failed.has(w.image)));
+                                             artists.get(a).some(w => fits(w.shape) && usableImage(w)));
     if (fresh.length) options.push({ country, fresh });
   }
   if (!options.length) {                 // everything is "recent": forget the history and start over
@@ -298,7 +303,7 @@ function pickWork(avoid, retried = false) {
   }
   const choice = weightedItem(options, o => countryWeight.get(o.country));
   const artist = weightedItem(choice.fresh, a => artistWeight.get(a));
-  const usable = byCountry.get(choice.country).get(artist).filter(w => fits(w.shape) && !failed.has(w.image));
+  const usable = byCountry.get(choice.country).get(artist).filter(w => fits(w.shape) && usableImage(w));
   const unseen = usable.filter(w => !seen.has(w.page));
   return randomItem(unseen.length ? unseen : usable);
 }
@@ -331,8 +336,13 @@ async function prepareNext() {
       img = await loadImage(work.image);
     } catch {
       failed.add(work.image);
+      const host = hostOf(work.image), n = (hostFails.get(host) || 0) + 1;
+      hostFails.set(host, n);
+      if (n >= 3) { hostDownUntil.set(host, Date.now() + 30 * 60e3); hostFails.set(host, 0); }
       continue;
     }
+    hostFails.set(hostOf(work.image), 0);
+    hostFails.set(hostOf(work.image), 0);
     // The art list's size can be missing or off; the loaded picture has the real shape.
     work.shape = shapeOf(img.naturalWidth, img.naturalHeight);
     if (fits(work.shape)) return { work, img };
