@@ -1,4 +1,4 @@
-# World Art Show on the PC: the art (index.html?desktop) on the left monitor and everything about it
+# Dylan's World Art Show on the PC: the art (index.html?desktop) on the left monitor and everything about it
 # (about.html) on the right, both full screen. Run by start.ps1, from the Desktop shortcut (see install.ps1).
 #   - The two screens talk to each other through a tiny web server that this script runs, which only
 #     this PC can reach (http://localhost:47233). It also looks up DeviantArt pieces for the right screen
@@ -73,8 +73,8 @@ for ($i = 0; $i -lt 40 -and -not $listener; $i++) {
 }
 if (-not $listener) {
     Add-Type -AssemblyName System.Windows.Forms
-    [System.Windows.Forms.MessageBox]::Show("World Art Show couldn't start, because something else on this PC is using port $port.",
-        'World Art Show') | Out-Null
+    [System.Windows.Forms.MessageBox]::Show("Dylan's World Art Show couldn't start, because something else on this PC is using port $port.",
+        'Dylan''s World Art Show') | Out-Null
     return
 }
 
@@ -259,7 +259,7 @@ if (-not $Preview) {
     ) | Where-Object { Test-Path $_ } | Select-Object -First 1
     if (-not $browser) {
         Add-Type -AssemblyName System.Windows.Forms
-        [System.Windows.Forms.MessageBox]::Show('World Art Show needs Google Chrome or Microsoft Edge.', 'World Art Show') | Out-Null
+        [System.Windows.Forms.MessageBox]::Show('Dylan''s World Art Show needs Google Chrome or Microsoft Edge.', 'Dylan''s World Art Show') | Out-Null
         $listener.Stop(); return
     }
 

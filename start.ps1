@@ -1,6 +1,6 @@
-# World Art Show on the PC starts here, from the Desktop shortcut (via launch.vbs).
+# Dylan's World Art Show on the PC starts here, from the Desktop shortcut (via launch.vbs).
 #
-# It runs from a copy in AppData that install.ps1 made, refreshed from your World Art Show folder on every
+# It runs from a copy in AppData that install.ps1 made, refreshed from your Dylan's World Art Show folder on every
 # start. That folder may be on Google Drive, which disconnects for a minute or so when the PC wakes from
 # sleep; if it isn't back in time, the last copy runs.
 
@@ -20,7 +20,7 @@ if ($source -and $source -ne $app) {
 }
 
 # DeviantArt blocks GitHub's servers, so this PC collects DeviantArt's daily picks and sends them up
-# (tools\fetch_deviantart.py, in your World Art Show folder). Start that in the background when the show
+# (tools\fetch_deviantart.py, in your Dylan's World Art Show folder). Start that in the background when the show
 # opens, at most every 6 hours; the daily task (see install.ps1) does it too.
 $fetcher = if ($source) { [IO.Path]::Combine($source, 'tools', 'fetch_deviantart.py') }
 $lastRun = Join-Path $data 'deviantart-last-run.txt'

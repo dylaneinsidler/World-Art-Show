@@ -3,6 +3,11 @@
 What changed in each version of World Art Show, newest first. Every version has pictures in `screenshots\v<version>-<scene>`:
 after a change, bump `VERSION`, add it here, take a picture of both screens while it's open, and commit.
 
+## 2.6 (October 9, 2026)
+
+- Its name is now **Dylan's World Art Show**: the folder, the Desktop shortcut, the window and welcome screen, the
+  iPad home-screen name, and the daily DeviantArt task. The web address stays the same, so the iPad app keeps working.
+
 ## 2.5 (October 9, 2026)
 
 - **Never stalls when a museum's images stop loading:** the Art Institute of Chicago's image server started refusing

@@ -1,4 +1,4 @@
-# Sets up World Art Show on this PC: a "World Art Show" shortcut on the Desktop that opens it on two screens
+# Sets up Dylan's World Art Show on this PC: a "Dylan's World Art Show" shortcut on the Desktop that opens it on two screens
 # (the art on the left, its story on the right), and a daily task that collects DeviantArt's picks for the
 # show (DeviantArt blocks GitHub's servers, so this PC does it).
 #   Install:  right-click this file > Run with PowerShell
@@ -11,8 +11,8 @@
 param([switch]$Uninstall)
 
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
-$shortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) 'World Art Show.lnk'
-$taskName = 'World Art Show - DeviantArt picks'
+$shortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) "Dylan's World Art Show.lnk"
+$taskName = "Dylan's World Art Show - DeviantArt picks"
 $home_ = Join-Path $env:LOCALAPPDATA 'WorldArtShow'
 $keyFile = Join-Path $home_ 'deviantart-key.txt'
 $app = Join-Path $home_ 'app'
@@ -21,7 +21,7 @@ if ($Uninstall) {
     Remove-Item $shortcut -ErrorAction SilentlyContinue
     Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
     Remove-Item $app -Recurse -Force -ErrorAction SilentlyContinue
-    Write-Host 'World Art Show removed (Desktop shortcut, daily task, and its copy in AppData). Your DeviantArt key is kept.'
+    Write-Host 'Dylan''s World Art Show removed (Desktop shortcut, daily task, and its copy in AppData). Your DeviantArt key is kept.'
     Start-Sleep -Seconds 4
     return
 }
@@ -60,10 +60,10 @@ if ($python) {
         -ExecutionTimeLimit (New-TimeSpan -Hours 2)
     $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Limited
     Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings `
-        -Principal $principal -Description 'Collects DeviantArt picks for World Art Show.' -Force | Out-Null
+        -Principal $principal -Description 'Collects DeviantArt picks for Dylan''s World Art Show.' -Force | Out-Null
 } else {
     Write-Host 'Python is not installed, so DeviantArt picks will not be collected on this PC.'
 }
 
-Write-Host 'Done. Double-click "World Art Show" on your Desktop.'
+Write-Host 'Done. Double-click "Dylan''s World Art Show" on your Desktop.'
 Start-Sleep -Seconds 4

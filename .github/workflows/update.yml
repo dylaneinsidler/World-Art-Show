@@ -1,4 +1,4 @@
-# Rebuilds the art list every few hours and publishes the show at https://dylaneinsidler.github.io/World-Art-Show/
+# Rebuilds the art list every few hours and publishes the show (Dylan's World Art Show) at https://dylaneinsidler.github.io/World-Art-Show/
 # The show fetches the newest list each time it opens, on the computer and on the iPad.
 # DeviantArt's picks arrive as deviantart.json, sent from the PC (tools/fetch_deviantart.py); that push runs this too.
 name: Update the art

@@ -1,4 +1,4 @@
-# World Art Show
+# Dylan's World Art Show
 
 New art by living artists from around the world, a new piece every 60 seconds. On your computer it fills two screens: the art on the left, and its story on the right. On an iPad it's a home-screen app that works in portrait and landscape.
 
