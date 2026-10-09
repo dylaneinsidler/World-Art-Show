@@ -87,6 +87,28 @@
   #welcome h1 { margin: 0; font: 300 clamp(26px, 4.2vh, 44px) "Segoe UI Variable Display", "Segoe UI", -apple-system, system-ui, sans-serif; letter-spacing: .28em; text-transform: uppercase; }
   #welcome p { margin: 0; font-size: clamp(12px, 1.4vh, 14px); color: var(--ink-3); letter-spacing: .06em; }
   #welcome.gone { opacity: 0; }
+
+  /* The desktop show (two screens, opened by launch.ps1 with ?desktop): the art fills this screen, and the
+     artist, title and everything else about it are on the right screen. */
+  body.desktop .label, body.desktop #status { display: none; }
+  body.desktop .frame { top: clamp(28px, 5vh, 60px); bottom: clamp(28px, 5vh, 60px); }
+  #close {
+    display: none; position: absolute; z-index: 4; top: 18px; right: 18px;
+    width: 46px; height: 46px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .28);
+    background: rgba(0, 0, 0, .38); color: #fff; font: 300 24px/44px "Segoe UI", sans-serif; text-align: center;
+    cursor: pointer; opacity: .75; transition: opacity .2s, background .2s;
+  }
+  #close:hover { opacity: 1; background: rgba(190, 40, 40, .85); }
+  body.desktop #close { display: block; }
+  body.desktop.idle #close { cursor: pointer; }
+
+  /* Light: a pale gallery wall around the piece instead of the dark one. */
+  body.light { --bg: #efebe4; --ink: #1f1c18; --ink-2: rgba(31, 28, 24, .74); --ink-3: rgba(31, 28, 24, .50); }
+  body.light .wash { filter: blur(70px) saturate(.9) brightness(1.45); opacity: .5; }
+  body.light .shade { display: none; }
+  body.light .art { box-shadow: 0 18px 50px rgba(0, 0, 0, .22), 0 2px 8px rgba(0, 0, 0, .15); }
+  body.light #close { background: rgba(255, 255, 255, .6); color: #222; border-color: rgba(0, 0, 0, .2); }
+  body.light #close:hover { background: rgba(190, 40, 40, .85); color: #fff; }
 </style>
 </head>
 <body>
@@ -94,6 +116,7 @@
 <div class="slide" id="slideB"></div>
 <div id="status"></div>
 <div id="welcome"><h1>World Art Show</h1><p id="welcomeNote">Getting the newest art…</p></div>
+<div id="close" title="Close both screens">✕</div>
 
 <script>
 'use strict';
@@ -108,6 +131,13 @@ const SOURCE_WEIGHT = { 'DeviantArt': 0.5 };
 const $ = id => document.getElementById(id);
 const statusEl = $('status');
 const touch = matchMedia('(pointer: coarse)').matches;
+
+// On the PC, launch.ps1 opens this page as the left of two screens (?desktop), served by its own small web
+// server; the right screen (about.html) tells the story of whatever is showing here. The art list still
+// comes from the website, so it's always the newest.
+const DESKTOP = new URLSearchParams(location.search).has('desktop');
+const SITE = 'https://dylaneinsidler.github.io/World-Art-Show/';
+if (DESKTOP) document.body.classList.add('desktop');
 
 // On the iPad the art matches the way it's held: landscape pieces when it's sideways, portrait pieces when
 // it's upright (near-square pieces fit both). The computer's window is always wide, so it shows every shape.
@@ -128,7 +158,7 @@ let byCountry = new Map(), artistWeight = new Map(), countryWeight = new Map();
 let artistMemory = 0, countryMemory = 0;
 
 async function fetchCatalog() {
-  const r = await fetch('catalog.json', { cache: 'no-cache' });
+  const r = await fetch(DESKTOP ? SITE + 'catalog.json' : 'catalog.json', { cache: 'no-cache' });
   if (!r.ok) throw new Error('catalog ' + r.status);
   return r.json();
 }
@@ -320,6 +350,7 @@ function show({ work, img }) {
   front = 1 - front;
   setTimeout(() => { if (slides[front] !== prev) prev.classList.remove('shown'); }, 1500);
   $('welcome').classList.add('gone');
+  shownWork = work;
 }
 
 // ------------------------------------------------------------------ the show
@@ -338,9 +369,11 @@ function setStatus(text) { statusEl.textContent = text || ''; }
 function runTimer() {
   clearTimeout(timer);
   timer = null;
-  if (paused || document.hidden) return;
-  timerStarted = Date.now();
-  timer = setTimeout(advance, timeLeft);
+  if (!paused && !document.hidden) {
+    timerStarted = Date.now();
+    timer = setTimeout(advance, timeLeft);
+  }
+  tellRightScreen();
 }
 
 function schedule(ms = SECONDS_PER_PIECE * 1000) {
@@ -388,7 +421,51 @@ function togglePause() {
   if (!paused && timer) timeLeft = Math.max(0, timeLeft - (Date.now() - timerStarted));
   paused = !paused;
   setStatus(paused ? 'Paused' : '');
-  if (paused) { clearTimeout(timer); timer = null; } else runTimer();   // resume where it left off
+  if (paused) { clearTimeout(timer); timer = null; tellRightScreen(); } else runTimer();   // resume where it left off
+}
+
+// ------------------------------------------------------------------ the right screen (desktop show only)
+
+// The two screens share what's showing through launch.ps1's web server: this one posts the piece on screen
+// (and when the next one is due), and picks up the buttons pressed and the Light / Dark switch on the right.
+let shownWork = null, lastSent = '';
+function tellRightScreen() {
+  if (!DESKTOP || !shownWork) return;
+  const { artist, country, title, date, source, page, image } = shownWork;
+  const body = JSON.stringify({ work: { artist, country, title, date, source, page, image },
+                                paused, nextAt: timer ? timerStarted + timeLeft : null,
+                                seconds: SECONDS_PER_PIECE, canGoBack: place > 0 });
+  if (body === lastSent) return;
+  lastSent = body;
+  fetch('/api/state?key=now', { method: 'POST', body }).catch(() => {});
+}
+
+function applyTheme(theme) { document.body.classList.toggle('light', theme === 'light'); }
+
+async function listenToRightScreen() {
+  let v = -1, lastCommand = null;
+  for (;;) {
+    try {
+      const r = await (await fetch('/api/state?v=' + v, { cache: 'no-store' })).json();
+      v = r.v;
+      applyTheme(r.state.theme);
+      const c = r.state.command;
+      if (c && lastCommand !== null && c.n !== lastCommand) {
+        if (c.do === 'next') advance();
+        else if (c.do === 'back') goBack();
+        else if (c.do === 'pause') togglePause();
+      }
+      lastCommand = c ? c.n : 0;
+    } catch {
+      await new Promise(r => setTimeout(r, 2000));   // the server is starting or closing
+    }
+  }
+}
+
+if (DESKTOP) {
+  $('close').addEventListener('click', () => window.close());
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') window.close(); });
+  listenToRightScreen();
 }
 
 function toggleFullscreen() {
@@ -404,9 +481,9 @@ document.addEventListener('keydown', e => {
   if (e.key === 'ArrowRight') advance();
   else if (e.key === 'ArrowLeft') goBack();
   else if (e.key === ' ') { e.preventDefault(); togglePause(); }
-  else if (e.key === 'f' || e.key === 'F' || e.key === 'F11') { e.preventDefault(); toggleFullscreen(); }
+  else if (!DESKTOP && (e.key === 'f' || e.key === 'F' || e.key === 'F11')) { e.preventDefault(); toggleFullscreen(); }
 });
-if (!touch) document.addEventListener('dblclick', toggleFullscreen);
+if (!touch && !DESKTOP) document.addEventListener('dblclick', toggleFullscreen);
 
 // Touch (iPad): swipe left for the next piece, right to go back, tap to pause.
 let touchStart = null;

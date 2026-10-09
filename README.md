@@ -1,26 +1,32 @@
 # World Art Show
 
-New art by living artists from around the world, a new piece every 60 seconds. On your computer it opens as its own window; on an iPad it's a home-screen app that works in portrait and landscape.
+New art by living artists from around the world, a new piece every 60 seconds. On your computer it fills two screens: the art on the left, and its story on the right. On an iPad it's a home-screen app that works in portrait and landscape.
+
+![Both screens on the computer](screenshots/v2.0/both-screens-dark.png)
 
 - **Art made by hand or on a computer:** paintings, drawings, watercolors, prints, collages and digital art. No photography, no photos of objects, no AI-made images, no fan art or video game art.
 - **New work:** made in 2010 or later, by artists alive today.
 - **Travels the world:** each piece is picked by country first. The same artist doesn't come back until hundreds of others have had a turn, and pieces don't repeat.
 - **Same frame every time:** each piece is shown whole, never cropped, and the space around it is filled with a soft, blurred copy of the piece.
-- **Bottom right:** the artist, their country, the title and year, and the link to the piece at its source.
+- **Bottom right (iPad):** the artist, their country, the title and year, and the link to the piece at its source.
 - **Always fresh:** GitHub rebuilds the art list every 3 hours, and the show loads the newest list every time it opens.
 
 The show: **https://dylaneinsidler.github.io/World-Art-Show/**
 
 ## On the computer
 
-Right-click `install.ps1` > **Run with PowerShell**. This puts a **World Art Show** shortcut on your Desktop. Double-click it: the show opens large and centered on the screen your mouse is on. Needs Google Chrome or Microsoft Edge.
+Right-click `install.ps1` > **Run with PowerShell**. This puts a **World Art Show** shortcut on your Desktop. Double-click it and the show fills both monitors (on one monitor, the two screens stack). Needs Google Chrome or Microsoft Edge.
+
+- **Left screen: the art,** a new piece every minute, whole and as large as it fits.
+- **Right screen: everything about it.** The title, artist and year; what it's made of and how big it is; **the story** behind it (the museum's own words, or the artist's own description on DeviantArt); **the artist** (their Wikipedia biography and photo for museum artists, or their DeviantArt profile); **their country** on a world map, with its flag, capital, region, languages and a short introduction; and **where it came from**: the museum and city (with a line on the map from the artist's country to the museum), or when it was shared on DeviantArt. Long text scrolls slowly by itself while the piece is up. Along the bottom: the link to the piece and the time until the next one.
 
 | | |
 |---|---|
-| **→** | next piece now |
-| **←** | back to the previous piece |
-| **Space** | pause / resume |
-| **F** or double-click | full screen (Esc to leave) |
+| **◀ ❚❚ ▶** on the right screen, or **← Space →** | previous piece, pause / resume, next piece |
+| **☀ Light / ☾ Dark** on the right screen | switches both screens; it's remembered for next time |
+| **✕** in the top right corner of either screen, or **Esc** | closes both screens |
+
+The screens stay on for up to 4 hours while it's open. It runs from a copy in `AppData\Local\WorldArtShow\app` that `start.ps1` refreshes from this folder on every start, so edit the files here, not the copy. The two screens talk through a tiny web server that `launch.ps1` runs and only this PC can reach (`http://localhost:47233`); it also looks up DeviantArt pieces for the right screen with your DeviantArt key (below), so it never leaves the PC. `country-facts.js` (capitals, regions, languages) is made by `tools/make_country_facts.py`.
 
 ## On the iPad
 

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>About this piece</title>
+<link rel="icon" href="art.ico">
+<link rel="stylesheet" href="about.css">
+</head>
+<!-- The right screen of the desktop show: everything about the piece on the left screen. Opened by launch.ps1,
+     which serves it and index.html?desktop from its own small web server so the two screens can talk. -->
+<body>
+<header class="bar">
+  <div class="brand">World Art Show</div>
+  <div class="buttons">
+    <button id="back" title="Previous piece (←)">◀</button>
+    <button id="pause" title="Pause (Space)">❚❚</button>
+    <button id="next" title="Next piece (→)">▶</button>
+    <button id="theme" class="theme" title="Switch both screens between light and dark"></button>
+  </div>
+  <button id="close" class="close" title="Close both screens">✕</button>
+</header>
+
+<main id="main" class="empty">
+  <section class="piece">
+    <div class="eyebrow"><span id="flag"></span><span id="eyebrow"></span></div>
+    <h1 id="title"></h1>
+    <div class="byline"><span id="artist"></span><span id="life"></span></div>
+    <div id="facts" class="facts"></div>
+
+    <h2>The story</h2>
+    <div id="storyBox" class="scroller"><div id="story" class="prose"></div></div>
+
+    <h2>The artist</h2>
+    <div class="artist-card">
+      <img id="artistPic" alt="">
+      <div id="artistBox" class="scroller"><div id="artistText" class="prose"></div></div>
+    </div>
+  </section>
+
+  <aside class="world">
+    <div id="map" class="map"></div>
+    <div class="country-head"><span id="countryFlag"></span><span id="countryName"></span></div>
+    <dl id="countryFacts" class="country-facts"></dl>
+    <div id="countryBox" class="scroller small"><div id="countryText" class="prose"></div></div>
+
+    <h2>Where it came from</h2>
+    <div id="origin" class="origin"></div>
+  </aside>
+</main>
+
+<div id="waiting" class="waiting">Waiting for the first piece…</div>
+
+<footer class="foot">
+  <div id="link" class="link"></div>
+  <div id="countdown" class="countdown"></div>
+  <div class="progress"><div id="progress"></div></div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+<script src="country-facts.js"></script>
+<script src="about.js"></script>
+</body>
+</html>

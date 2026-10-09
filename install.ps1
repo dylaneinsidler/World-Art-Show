@@ -1,7 +1,12 @@
-# Sets up World Art Show on this PC: a "World Art Show" shortcut on the Desktop, and a daily task that collects
-# DeviantArt's picks for the show (DeviantArt blocks GitHub's servers, so this PC does it).
+# Sets up World Art Show on this PC: a "World Art Show" shortcut on the Desktop that opens it on two screens
+# (the art on the left, its story on the right), and a daily task that collects DeviantArt's picks for the
+# show (DeviantArt blocks GitHub's servers, so this PC does it).
 #   Install:  right-click this file > Run with PowerShell
 #   Remove:   run it with -Uninstall
+#
+# The show runs from a copy in AppData, which refreshes itself from this folder every time it starts.
+# That way it still opens if this folder is on a drive that isn't ready yet, like Google Drive right
+# after the PC wakes from sleep. Keep editing the files here, not the copy.
 
 param([switch]$Uninstall)
 
@@ -10,24 +15,30 @@ $shortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) 'World Art Show.
 $taskName = 'World Art Show - DeviantArt picks'
 $home_ = Join-Path $env:LOCALAPPDATA 'WorldArtShow'
 $keyFile = Join-Path $home_ 'deviantart-key.txt'
+$app = Join-Path $home_ 'app'
 
 if ($Uninstall) {
     Remove-Item $shortcut -ErrorAction SilentlyContinue
     Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
-    Write-Host 'World Art Show removed (Desktop shortcut and daily task).'
+    Remove-Item $app -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Host 'World Art Show removed (Desktop shortcut, daily task, and its copy in AppData). Your DeviantArt key is kept.'
     Start-Sleep -Seconds 4
     return
 }
 
+New-Item -ItemType Directory -Force $app | Out-Null
+robocopy $here $app index.html about.html *.js *.css *.ps1 *.vbs *.ico /R:1 /W:1 /NJH /NJS /NFL /NDL /NP | Out-Null
+Set-Content (Join-Path $app 'source.txt') $here
 # Windows won't quietly run files downloaded from the internet until they're unblocked.
 Get-ChildItem $here -File -Recurse | Unblock-File
+Get-ChildItem $app -File | Unblock-File
 
 $link = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcut)
 $link.TargetPath = Join-Path $env:SystemRoot 'System32\wscript.exe'
-$link.Arguments = "`"$(Join-Path $here 'launch.vbs')`""
-$link.WorkingDirectory = $here
-$link.IconLocation = "$(Join-Path $here 'art.ico'),0"
-$link.Description = 'New art by living artists from around the world, a new piece every minute'
+$link.Arguments = "`"$(Join-Path $app 'launch.vbs')`""
+$link.WorkingDirectory = $app
+$link.IconLocation = "$(Join-Path $app 'art.ico'),0"
+$link.Description = 'A new piece of art every minute on the left screen, its story on the right'
 $link.Save()
 
 # The DeviantArt key lives here, outside the synced folder and the repository.
