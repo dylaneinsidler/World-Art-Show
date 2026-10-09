@@ -1,6 +1,6 @@
 # Changelog
 
-What changed in each version of World Art Show, newest first. Every version has pictures in `screenshots\v<version>\`:
+What changed in each version of World Art Show, newest first. Every version has pictures in `screenshots\v<version>-<scene>`:
 after a change, bump `VERSION`, add it here, take a picture of both screens while it's open, and commit.
 
 ## 2.5 (October 9, 2026)

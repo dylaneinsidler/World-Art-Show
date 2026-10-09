@@ -2,7 +2,7 @@
 
 New art by living artists from around the world, a new piece every 60 seconds. On your computer it fills two screens: the art on the left, and its story on the right. On an iPad it's a home-screen app that works in portrait and landscape.
 
-![Both screens on the computer](screenshots/v2.0/both-screens-dark.png)
+![Both screens on the computer](screenshots/v2.0-both-screens-dark.png)
 
 - **Art made by hand or on a computer:** paintings, drawings, watercolors, prints, collages and digital art. No photography, no photos of objects, no AI-made images, no fan art or video game art.
 - **New work:** made in 2010 or later, by artists alive today.
