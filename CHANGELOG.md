@@ -3,6 +3,13 @@
 What changed in each version of World Art Show, newest first. Every version has pictures in `screenshots\v<version>\`:
 after a change, bump `VERSION`, add it here, take a picture of both screens while it's open, and commit.
 
+## 2.2 (October 8, 2026)
+
+- **Back to a new piece every minute**, now on the minute, in step with the Morning and Night Screens: each time the
+  show comes up there, a new piece arrives with it.
+- **Where the artist is from:** for museum artists, their hometown (city, state where there is one, and country) at the
+  top of the right screen, from Wikidata, with the map's dot on that city. DeviantArt artists show their country.
+
 ## 2.1 (October 8, 2026)
 
 - **A new piece every 10 seconds** on the computer's two screens (the iPad stays at a minute). The right screen's

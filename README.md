@@ -17,7 +17,7 @@ The show: **https://dylaneinsidler.github.io/World-Art-Show/**
 
 Right-click `install.ps1` > **Run with PowerShell**. This puts a **World Art Show** shortcut on your Desktop. Double-click it and the show fills both monitors (on one monitor, the two screens stack). Needs Google Chrome or Microsoft Edge.
 
-- **Left screen: the art,** a new piece every 10 seconds (on the iPad, every minute), whole and as large as it fits.
+- **Left screen: the art,** a new piece every minute, whole and as large as it fits.
 - **Right screen: everything about it.** The title, artist and year; what it's made of and how big it is; **the story** behind it (the museum's own words, or the artist's own description on DeviantArt); **the artist** (their Wikipedia biography and photo for museum artists, or their DeviantArt profile); **their country** on a world map, with its flag, capital, region, languages and a short introduction; and **where it came from**: the museum and city (with a line on the map from the artist's country to the museum), or when it was shared on DeviantArt. Long text scrolls slowly by itself while the piece is up. Along the bottom: the link to the piece and the time until the next one.
 
 | | |

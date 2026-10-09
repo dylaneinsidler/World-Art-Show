@@ -121,7 +121,7 @@
 <script>
 'use strict';
 
-let SECONDS_PER_PIECE = 60;       // 10 on the PC's two screens (see DESKTOP below)
+const SECONDS_PER_PIECE = 60;
 const LOAD_TIMEOUT_MS = 40000;          // some museum servers take a while to make the image
 const CATALOG_REFRESH_MS = 60 * 60e3;   // while open, check for a newer art list every hour
 // How often an artist comes up, by where their work comes from. The museums' picks count fully; DeviantArt
@@ -138,8 +138,6 @@ const touch = matchMedia('(pointer: coarse)').matches;
 const DESKTOP = new URLSearchParams(location.search).has('desktop');
 const SITE = 'https://dylaneinsidler.github.io/World-Art-Show/';
 if (DESKTOP) document.body.classList.add('desktop');
-// On the PC's two screens, a new piece every 10 seconds; on the iPad, every minute.
-if (DESKTOP) SECONDS_PER_PIECE = 10;
 
 // On the iPad the art matches the way it's held: landscape pieces when it's sideways, portrait pieces when
 // it's upright (near-square pieces fit both). The computer's window is always wide, so it shows every shape.
@@ -379,6 +377,9 @@ function runTimer() {
 }
 
 function schedule(ms = SECONDS_PER_PIECE * 1000) {
+  // On the PC, pieces change on the minute, in step with the Morning and Night Screens, which switch apps
+  // on the minute: each time the show comes up there, a new piece arrives with it.
+  if (DESKTOP && ms === SECONDS_PER_PIECE * 1000) ms = 60000 - (Date.now() % 60000) || 60000;
   timeLeft = ms;
   runTimer();
 }

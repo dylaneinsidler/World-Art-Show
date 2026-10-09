@@ -220,6 +220,46 @@ async function wikiArtist(name, born) {
   return s;
 }
 
+// ------------------------------------------------------------------ where the artist is from
+
+// From the artist's Wikidata record (the one behind the Wikipedia page found above): their place of
+// birth, or else where they live, as "City, State, Country" (the state only for countries that have
+// them), and where it is on the globe. DeviantArt profiles only give a country, so this is for museum artists.
+const STATE_KINDS = new Set(['Q35657', 'Q11828004', 'Q9357527', 'Q5852411', 'Q485258', 'Q15149663', 'Q131541']);
+// US state, Canadian province and territory, Australian state, Brazilian state, Mexican state, Indian state
+const SHORT_COUNTRY = { 'United States of America': 'USA', 'United States': 'USA', "People's Republic of China": 'China' };
+
+async function wikidata(ids, props) {
+  const url = `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${ids.join('|')}&props=${props}&languages=en&format=json&origin=*`;
+  return (await getJSON(url, 12000)).entities || {};
+}
+const claimIds = (e, p) => (e?.claims?.[p] || []).map(c => c.mainsnak?.datavalue?.value?.id).filter(Boolean);
+const labelOf = e => e?.labels?.en?.value || '';
+
+async function hometown(qid) {
+  try {
+    const artist = (await wikidata([qid], 'claims'))[qid];
+    const placeId = claimIds(artist, 'P19')[0] || claimIds(artist, 'P551')[0];
+    if (!placeId) return null;
+    const place = (await wikidata([placeId], 'labels|claims'))[placeId];
+    const coord = place?.claims?.P625?.[0]?.mainsnak?.datavalue?.value;
+    // Up the chain of places it's in (county, region...) until a state or province turns up.
+    let state = '', up = claimIds(place, 'P131');
+    for (let depth = 0; depth < 4 && up.length && !state; depth++) {
+      const found = Object.values(await wikidata(up.slice(0, 5), 'labels|claims'));
+      const s = found.find(e => claimIds(e, 'P31').some(k => STATE_KINDS.has(k)));
+      if (s) state = labelOf(s);
+      up = [...new Set(found.flatMap(e => claimIds(e, 'P131')))];
+    }
+    const countryId = claimIds(place, 'P17')[0];
+    let country = countryId ? labelOf((await wikidata([countryId], 'labels'))[countryId]) : '';
+    country = SHORT_COUNTRY[country] || country;
+    const city = labelOf(place);
+    const parts = [city, state, country].filter((x, i, all) => x && all.indexOf(x) === i);
+    return parts.length ? { text: parts.join(', '), at: coord ? [coord.longitude, coord.latitude] : null } : null;
+  } catch { return null; }
+}
+
 // ------------------------------------------------------------------ the map
 
 let worldShapes = null;
@@ -230,7 +270,8 @@ function loadWorld() {
   return worldShapes;
 }
 
-async function drawMap(countries, museum, token) {
+// home: the artist's hometown [longitude, latitude], when it's known; otherwise the dot sits mid-country.
+async function drawMap(countries, museum, token, home = null) {
   const box = $('map');
   let features;
   try { features = await loadWorld(); } catch { box.replaceChildren(); return; }
@@ -239,7 +280,7 @@ async function drawMap(countries, museum, token) {
   const w = box.clientWidth, h = box.clientHeight;
   const ids = new Set(countries.map(c => c.ccn3).filter(Boolean));
   const homes = features.filter(f => ids.has(String(f.id)));
-  const dots = countries.filter(c => c.latlng && c.latlng.length).map(c => [c.latlng[1], c.latlng[0]]);
+  const dots = home ? [home] : countries.filter(c => c.latlng && c.latlng.length).map(c => [c.latlng[1], c.latlng[0]]);
   const points = [...dots, ...(museum ? [museum.at] : [])];
 
   // Turn the globe so the countries and the museum sit in the middle (no route cut in half at the edge),
@@ -339,6 +380,13 @@ async function render(work) {
     const s = await wikiArtist(work.artist, d.born);
     if (token !== renderToken) return;
     if (s) showArtist(paragraphs(s.extract).concat([`From Wikipedia: ${s.title}`]), s.thumbnail && s.thumbnail.source);
+    // Their hometown at the top ("Chicago, Illinois, USA · 2019"), and the map's dot moved there.
+    const town = s && s.wikibase_item ? await hometown(s.wikibase_item) : null;
+    if (token !== renderToken) return;
+    if (town) {
+      $('eyebrow').textContent = [town.text, work.date].filter(Boolean).join(' · ');
+      if (town.at) drawMap(countries, museum, token, town.at);
+    }
     else showArtist([`${work.artist}${d.life ? ' (' + d.life + ')' : ''} is a living artist from ${labels.join(' and ')}.`,
                      `${work.source} has this piece in its collection. There isn't more written about the artist yet.`]);
   }
