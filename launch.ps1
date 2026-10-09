@@ -83,6 +83,10 @@ $version = 0      # goes up with every change, so each screen knows when there's
 $waiting = New-Object System.Collections.ArrayList   # screens waiting to hear about the next change
 $savedTheme = (Get-Content -LiteralPath $themeFile -ErrorAction SilentlyContinue | Select-Object -First 1)
 $state['theme'] = if ($savedTheme -eq 'light') { '"light"' } else { '"dark"' }
+# Digital art (DeviantArt's picks) on or off, from the right screen's switch: off until turned on. Kept in
+# digital.txt, so every copy of the show (this app, the Morning and Night Screens, the tester) agrees.
+$digitalFile = Join-Path $data 'digital.txt'
+$state['digital'] = if ((Get-Content -LiteralPath $digitalFile -ErrorAction SilentlyContinue | Select-Object -First 1) -eq 'true') { 'true' } else { 'false' }
 
 $types = @{
     '.html' = 'text/html; charset=utf-8'; '.js' = 'text/javascript; charset=utf-8'; '.css' = 'text/css; charset=utf-8'
@@ -197,6 +201,7 @@ function Invoke-Request($ctx) {
                 $script:version++
                 Send-ToWaiting
                 if ($key -eq 'theme') { Set-Content -LiteralPath $themeFile ($body.Trim('"')) }
+                if ($key -eq 'digital') { Set-Content -LiteralPath $digitalFile ($body.Trim()) }
             }
             Send-Text $ctx ('{"v":' + $script:version + '}')
         } else {

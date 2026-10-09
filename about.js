@@ -461,7 +461,7 @@ requestAnimationFrame(scrollFrame);
 
 // ------------------------------------------------------------------ talking to the left screen
 
-let now = null, theme = 'dark';
+let now = null, theme = 'dark', digital = false;
 
 function send(key, value) {
   fetch('/api/state?key=' + key, { method: 'POST', body: JSON.stringify(value) }).catch(() => {});
@@ -483,6 +483,9 @@ async function listen() {
       const r = await (await fetch('/api/state?v=' + v, { cache: 'no-store' })).json();
       v = r.v;
       applyTheme(r.state.theme);
+      digital = r.state.digital === true;
+      $('digital').textContent = `Digital art: ${digital ? 'On' : 'Off'}`;
+      $('digital').classList.toggle('on', digital);
       if (r.state.now) {
         const changed = !now || now.work.page !== r.state.now.work.page;
         now = r.state.now;
@@ -501,6 +504,8 @@ $('back').addEventListener('click', () => command('back'));
 $('next').addEventListener('click', () => command('next'));
 $('pause').addEventListener('click', () => command('pause'));
 $('theme').addEventListener('click', () => send('theme', theme === 'light' ? 'dark' : 'light'));
+// Digital art (DeviantArt's picks) on or off, for both screens; launch.ps1 remembers it.
+$('digital').addEventListener('click', () => send('digital', !digital));
 $('close').addEventListener('click', () => window.close());
 document.addEventListener('keydown', e => {
   if (e.key === 'ArrowRight') command('next');

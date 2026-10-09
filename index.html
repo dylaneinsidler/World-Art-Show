@@ -90,7 +90,15 @@
 
   /* The desktop show (two screens, opened by launch.ps1 with ?desktop): the art fills this screen, and the
      artist, title and everything else about it are on the right screen. */
-  body.desktop .label, body.desktop #status { display: none; }
+  /* Digital art on or off: shown while the show is paused (on the iPad, tap to pause). */
+  #digital {
+    display: none; position: absolute; z-index: 3; left: var(--side); top: var(--top);
+    padding: 8px 16px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .3);
+    background: rgba(0, 0, 0, .45); color: var(--ink); font-size: 14px; cursor: pointer;
+  }
+  #digital.on { background: rgba(255, 255, 255, .85); color: #111; }
+  body.paused #digital { display: block; }
+  body.desktop .label, body.desktop #status, body.desktop #digital { display: none; }
   body.desktop .frame { top: clamp(28px, 5vh, 60px); bottom: clamp(28px, 5vh, 60px); }
   #close {
     display: none; position: absolute; z-index: 4; top: 18px; right: 18px;
@@ -115,6 +123,7 @@
 <div class="slide" id="slideA"></div>
 <div class="slide" id="slideB"></div>
 <div id="status"></div>
+<div id="digital">Digital art: Off</div>
 <div id="welcome"><h1>World Art Show</h1><p id="welcomeNote">Getting the newest art…</p></div>
 <div id="close" title="Close both screens">✕</div>
 
@@ -157,6 +166,23 @@ let catalogBuilt = null, catalogCheckedAt = 0;
 let byCountry = new Map(), artistWeight = new Map(), countryWeight = new Map();
 let artistMemory = 0, countryMemory = 0;
 
+// Digital art (DeviantArt's picks) only when it's turned on: otherwise the show is the museums' paintings,
+// drawings, prints and the like. On the iPad the choice is kept on the iPad (tap to pause, then "Digital
+// art"); on the PC, launch.ps1 keeps it for every copy of the show (the switch is on the right screen).
+let showDigital = DESKTOP ? false : load('digital', false);
+let lastCatalog = null;
+
+function setDigital(on) {
+  if (on === showDigital) return;
+  showDigital = on;
+  if (!DESKTOP) save('digital', on);
+  $('digital').textContent = `Digital art: ${on ? 'On' : 'Off'}`;
+  $('digital').classList.toggle('on', on);
+  if (lastCatalog) { useCatalog(lastCatalog); upcoming = null; }
+  // Turned off with a digital piece on screen: on to a museum piece now.
+  if (!on && shownWork && shownWork.source === 'DeviantArt' && !paused) advance();
+}
+
 async function fetchCatalog() {
   const r = await fetch(DESKTOP ? SITE + 'catalog.json' : 'catalog.json', { cache: 'no-cache' });
   if (!r.ok) throw new Error('catalog ' + r.status);
@@ -167,9 +193,11 @@ function useCatalog(catalog) {
   const col = Object.fromEntries(catalog.fields.map((f, i) => [f, i]));
   // country -> artist -> works. A piece is picked by country first, so the show travels the world
   // instead of mostly showing the countries whose artists the museums collect most.
+  lastCatalog = catalog;
   byCountry = new Map();
   artistWeight = new Map();
   for (const r of catalog.works) {
+    if (!showDigital && r[col.source] === 'DeviantArt') continue;
     const w = { artist: r[col.artist], country: r[col.country], title: r[col.title], date: r[col.date],
                 source: r[col.source], page: r[col.page], image: r[col.image],
                 shape: shapeOf(r[col.w], r[col.h]) };
@@ -424,6 +452,7 @@ function togglePause() {
   if (!paused && timer) timeLeft = Math.max(0, timeLeft - (Date.now() - timerStarted));
   paused = !paused;
   setStatus(paused ? 'Paused' : '');
+  document.body.classList.toggle('paused', paused);       // shows the Digital art button (iPad)
   if (paused) { clearTimeout(timer); timer = null; tellRightScreen(); } else runTimer();   // resume where it left off
 }
 
@@ -437,7 +466,7 @@ function tellRightScreen() {
   const { artist, country, title, date, source, page, image } = shownWork;
   const body = JSON.stringify({ work: { artist, country, title, date, source, page, image },
                                 paused, nextAt: timer ? timerStarted + timeLeft : null,
-                                seconds: SECONDS_PER_PIECE, canGoBack: place > 0 });
+                                seconds: SECONDS_PER_PIECE, canGoBack: place > 0, digital: showDigital });
   if (body === lastSent) return;
   lastSent = body;
   fetch('/api/state?key=now', { method: 'POST', body }).catch(() => {});
@@ -454,6 +483,7 @@ async function listenToRightScreen() {
       const r = await (await fetch('/api/state?v=' + v, { cache: 'no-store' })).json();
       v = r.v;
       applyTheme(r.state.theme);
+      setDigital(r.state.digital === true);
       const c = r.state.command;
       if (c && lastCommand !== null && c.n !== lastCommand) {
         if (c.do === 'next') advance();
@@ -498,6 +528,7 @@ document.addEventListener('touchstart', e => {
 }, { passive: true });
 document.addEventListener('touchend', e => {
   if (!touchStart || e.target.closest('a')) return;   // tapping the link opens the piece's page
+  if (e.target.closest('#digital')) { touchStart = null; return; }   // its click (below) does it
   const t = e.changedTouches[0], dx = t.clientX - touchStart.x, dy = t.clientY - touchStart.y;
   if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) dx < 0 ? advance() : goBack();
   else if (Math.hypot(dx, dy) < 12 && Date.now() - touchStart.at < 500) togglePause();
@@ -558,6 +589,10 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ------------------------------------------------------------------ start
+
+$('digital').textContent = `Digital art: ${showDigital ? 'On' : 'Off'}`;
+$('digital').classList.toggle('on', showDigital);
+$('digital').addEventListener('click', e => { e.stopPropagation(); setDigital(!showDigital); });
 
 (async function start() {
   catalogCheckedAt = Date.now();

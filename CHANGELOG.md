@@ -3,6 +3,12 @@
 What changed in each version of World Art Show, newest first. Every version has pictures in `screenshots\v<version>\`:
 after a change, bump `VERSION`, add it here, take a picture of both screens while it's open, and commit.
 
+## 2.3 (October 8, 2026)
+
+- **Real art only, unless you turn on digital art:** the show is the museums' paintings, drawings, prints and the like.
+  DeviantArt's digital art comes back with **Digital art: On**: a button on the computer's right screen (remembered for
+  the app, the Morning and Night Screens and the tester), and on the iPad, a button that appears when you tap to pause.
+
 ## 2.2 (October 8, 2026)
 
 - **Back to a new piece every minute**, now on the minute, in step with the Morning and Night Screens: each time the

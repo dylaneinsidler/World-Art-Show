@@ -24,6 +24,7 @@ Right-click `install.ps1` > **Run with PowerShell**. This puts a **World Art Sho
 |---|---|
 | **◀ ❚❚ ▶** on the right screen, or **← Space →** | previous piece, pause / resume, next piece |
 | **☀ Light / ☾ Dark** on the right screen | switches both screens; it's remembered for next time |
+| **Digital art: Off / On** on the right screen | only the museums' paintings, drawings and prints (Off, the usual), or DeviantArt's digital art too; remembered |
 | **✕** in the top right corner of either screen, or **Esc** | closes both screens |
 
 The screens stay on for up to 4 hours while it's open. It runs from a copy in `AppData\Local\WorldArtShow\app` that `start.ps1` refreshes from this folder on every start, so edit the files here, not the copy. The two screens talk through a tiny web server that `launch.ps1` runs and only this PC can reach (`http://localhost:47233`); it also looks up DeviantArt pieces for the right screen with your DeviantArt key (below), so it never leaves the PC. `country-facts.js` (capitals, regions, languages) is made by `tools/make_country_facts.py`.
