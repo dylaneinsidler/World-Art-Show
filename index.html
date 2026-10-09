@@ -98,7 +98,10 @@
   }
   #digital.on { background: rgba(255, 255, 255, .85); color: #111; }
   body.paused #digital { display: block; }
-  body.desktop .label, body.desktop #status, body.desktop #digital { display: none; }
+  #hideThis { display: none; position: absolute; z-index: 3; left: var(--side); top: calc(var(--top) + 48px); padding: 8px 16px; border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, .3); background: rgba(0, 0, 0, .45); color: var(--ink); font-size: 14px; cursor: pointer; }
+  body.paused #hideThis { display: block; }
+  body.desktop .label, body.desktop #status, body.desktop #digital, body.desktop #hideThis { display: none; }
   body.desktop .frame { top: clamp(28px, 5vh, 60px); bottom: clamp(28px, 5vh, 60px); }
   #close {
     display: none; position: absolute; z-index: 4; top: 18px; right: 18px;
@@ -124,6 +127,7 @@
 <div class="slide" id="slideB"></div>
 <div id="status"></div>
 <div id="digital">Digital art: Off</div>
+<div id="hideThis">Don't show this again</div>
 <div id="welcome"><h1>World Art Show</h1><p id="welcomeNote">Getting the newest art…</p></div>
 <div id="close" title="Close both screens">✕</div>
 
@@ -172,6 +176,20 @@ let artistMemory = 0, countryMemory = 0;
 let showDigital = DESKTOP ? false : load('digital', false);
 let lastCatalog = null;
 
+// Pieces never to show: ones you've hidden (the "Don't show again" button: kept on the iPad, or by launch.ps1
+// on the PC), and any whose title points to male nudity or gay themes. Women are fine.
+const UNWANTED = /\b(male nudes?|nude (man|men|male|boy|boys|youth)|naked (man|men|boy|boys)|(man|men|boy|boys) naked|gay|queer|lgbt\w*|homoerotic\w*|homosexual\w*|drag (queen|king)s?|two men|men kissing|boyfriends)\b/i;
+const hiddenPages = new Set(DESKTOP ? [] : load('hidden', []));
+
+function hidePieces(pages) {
+  const fresh = pages.filter(p => !hiddenPages.has(p));
+  if (!fresh.length) return;
+  fresh.forEach(p => hiddenPages.add(p));
+  if (!DESKTOP) save('hidden', [...hiddenPages]);
+  if (lastCatalog) { useCatalog(lastCatalog); upcoming = null; }
+  if (shownWork && hiddenPages.has(shownWork.page)) advance();
+}
+
 function setDigital(on) {
   if (on === showDigital) return;
   showDigital = on;
@@ -198,6 +216,7 @@ function useCatalog(catalog) {
   artistWeight = new Map();
   for (const r of catalog.works) {
     if (!showDigital && r[col.source] === 'DeviantArt') continue;
+    if (hiddenPages.has(r[col.page]) || UNWANTED.test(r[col.title] || '')) continue;
     const w = { artist: r[col.artist], country: r[col.country], title: r[col.title], date: r[col.date],
                 source: r[col.source], page: r[col.page], image: r[col.image],
                 shape: shapeOf(r[col.w], r[col.h]) };
@@ -484,6 +503,7 @@ async function listenToRightScreen() {
       v = r.v;
       applyTheme(r.state.theme);
       setDigital(r.state.digital === true);
+      if (Array.isArray(r.state.hidden)) hidePieces(r.state.hidden);
       const c = r.state.command;
       if (c && lastCommand !== null && c.n !== lastCommand) {
         if (c.do === 'next') advance();
@@ -528,7 +548,7 @@ document.addEventListener('touchstart', e => {
 }, { passive: true });
 document.addEventListener('touchend', e => {
   if (!touchStart || e.target.closest('a')) return;   // tapping the link opens the piece's page
-  if (e.target.closest('#digital')) { touchStart = null; return; }   // its click (below) does it
+  if (e.target.closest('#digital, #hideThis')) { touchStart = null; return; }   // their clicks (below) do it
   const t = e.changedTouches[0], dx = t.clientX - touchStart.x, dy = t.clientY - touchStart.y;
   if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) dx < 0 ? advance() : goBack();
   else if (Math.hypot(dx, dy) < 12 && Date.now() - touchStart.at < 500) togglePause();
@@ -593,6 +613,7 @@ document.addEventListener('visibilitychange', () => {
 $('digital').textContent = `Digital art: ${showDigital ? 'On' : 'Off'}`;
 $('digital').classList.toggle('on', showDigital);
 $('digital').addEventListener('click', e => { e.stopPropagation(); setDigital(!showDigital); });
+$('hideThis').addEventListener('click', e => { e.stopPropagation(); if (shownWork) hidePieces([shownWork.page]); });
 
 (async function start() {
   catalogCheckedAt = Date.now();

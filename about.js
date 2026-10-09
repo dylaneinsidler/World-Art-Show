@@ -506,6 +506,8 @@ $('pause').addEventListener('click', () => command('pause'));
 $('theme').addEventListener('click', () => send('theme', theme === 'light' ? 'dark' : 'light'));
 // Digital art (DeviantArt's picks) on or off, for both screens; launch.ps1 remembers it.
 $('digital').addEventListener('click', () => send('digital', !digital));
+// Never show the piece on screen again; the left screen moves on to the next one.
+$('hide').addEventListener('click', () => { if (now) send('hide', now.work.page); });
 $('close').addEventListener('click', () => window.close());
 document.addEventListener('keydown', e => {
   if (e.key === 'ArrowRight') command('next');

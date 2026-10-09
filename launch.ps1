@@ -87,6 +87,14 @@ $state['theme'] = if ($savedTheme -eq 'light') { '"light"' } else { '"dark"' }
 # digital.txt, so every copy of the show (this app, the Morning and Night Screens, the tester) agrees.
 $digitalFile = Join-Path $data 'digital.txt'
 $state['digital'] = if ((Get-Content -LiteralPath $digitalFile -ErrorAction SilentlyContinue | Select-Object -First 1) -eq 'true') { 'true' } else { 'false' }
+# Pieces you never want to see again (the "Don't show again" button on the right screen), one address per
+# line in hidden.txt, shared by every copy of the show.
+$hiddenFile = Join-Path $data 'hidden.txt'
+function Get-HiddenJson {
+    $pages = @(Get-Content -LiteralPath $hiddenFile -ErrorAction SilentlyContinue | Where-Object { $_ -match '^https?://' })
+    '[' + (($pages | ForEach-Object { ConvertTo-Json ([string]$_) }) -join ',') + ']'
+}
+$state['hidden'] = Get-HiddenJson
 
 $types = @{
     '.html' = 'text/html; charset=utf-8'; '.js' = 'text/javascript; charset=utf-8'; '.css' = 'text/css; charset=utf-8'
@@ -196,7 +204,15 @@ function Invoke-Request($ctx) {
         if ($req.HttpMethod -eq 'POST') {
             $key = $req.QueryString['key']
             $body = Read-Body $req
-            if ($key -match '^[a-z]+$' -and $body) {
+            if ($key -eq 'hide' -and $body) {
+                # One more piece never to show: add it to hidden.txt, and tell both screens.
+                $page = ($body | ConvertFrom-Json)
+                if ($page -match '^https?://') { Add-Content -LiteralPath $hiddenFile $page }
+                $state['hidden'] = Get-HiddenJson
+                $script:version++
+                Send-ToWaiting
+            }
+            elseif ($key -match '^[a-z]+$' -and $body) {
                 $state[$key] = $body
                 $script:version++
                 Send-ToWaiting

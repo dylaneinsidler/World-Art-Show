@@ -3,6 +3,13 @@
 What changed in each version of World Art Show, newest first. Every version has pictures in `screenshots\v<version>\`:
 after a change, bump `VERSION`, add it here, take a picture of both screens while it's open, and commit.
 
+## 2.4 (October 9, 2026)
+
+- **"Don't show again"**: on the computer's right screen (for the app, the Morning and Night Screens and the tester), and
+  on the iPad when you tap to pause. A hidden piece never comes back.
+- **No male nudity or gay themes:** pieces whose titles point to them are left out. (Museums rarely tag what's in a
+  picture, so the button is the sure way.)
+
 ## 2.3 (October 8, 2026)
 
 - **Real art only, unless you turn on digital art:** the show is the museums' paintings, drawings, prints and the like.
