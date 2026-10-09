@@ -384,8 +384,8 @@ function showOrigin(work, museum, lines) {
 
 // ------------------------------------------------------------------ long text scrolls itself
 
-// Text that doesn't fit drifts upward while the piece is up: it waits a few seconds, then scrolls to the
-// end in time for the next piece. The clock stops while the show is paused.
+// Text that doesn't fit drifts upward while the piece is up: it waits a moment, then scrolls to the end in
+// time for the next piece. The clock stops while the show is paused.
 let scrollClock = 0, lastFrame = performance.now();
 function restartScroll() { scrollClock = 0; document.querySelectorAll('.scroller').forEach(s => { s.scrollTop = 0; }); }
 function scrollFrame(t) {
@@ -393,7 +393,8 @@ function scrollFrame(t) {
   lastFrame = t;
   if (!now || !now.paused) scrollClock += dt;
   const total = ((now && now.seconds) || 60) * 1000;
-  const progress = Math.min(1, Math.max(0, (scrollClock - 7000) / (total - 17000)));
+  // Waits the first 15% of the piece's time, then reaches the end by 90%.
+  const progress = Math.min(1, Math.max(0, (scrollClock - total * 0.15) / (total * 0.75)));
   for (const s of document.querySelectorAll('.scroller')) {
     const extra = s.scrollHeight - s.clientHeight;
     s.classList.toggle('overflowing', extra > 4);
@@ -419,8 +420,10 @@ function send(key, value) {
 }
 function command(what) { send('command', { n: Date.now(), do: what }); }
 
+// ?theme= in the address (the Morning and Night Screens use it) wins over the switch.
+const FORCED_THEME = new URLSearchParams(location.search).get('theme');
 function applyTheme(t) {
-  theme = t === 'light' ? 'light' : 'dark';
+  theme = (FORCED_THEME || t) === 'light' ? 'light' : 'dark';
   document.body.classList.toggle('light', theme === 'light');
   $('theme').textContent = theme === 'light' ? '☾  Dark' : '☀  Light';
 }
