@@ -15,6 +15,24 @@ window.DylanClose = (() => {
     }
     return false;
   }
+  // Both screens appear together: the launcher notes when it opened them (opened.js); each page stays black until
+  // a moment just after that (about how long Chrome takes to start both), or until it's ready if that's later,
+  // then fades in. Only right after opening; never stuck (at most 8 seconds).
+  const opened = window.DYLAN_OPENED;
+  if (!inFrame && opened && Date.now() - opened < 15000) {
+    const root = document.documentElement, st = document.createElement('style');
+    st.textContent = 'html.dylan-wait { background: #000 !important; } html.dylan-wait body { opacity: 0 !important; } body { transition: opacity .3s ease; }';
+    (document.head || root).appendChild(st);
+    root.classList.add('dylan-wait');
+    const show = () => root.classList.remove('dylan-wait');
+    const ready = new Promise(r => {
+      const go = () => (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => setTimeout(r, 150));
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
+    });
+    const together = new Promise(r => setTimeout(r, Math.max(0, opened + 2200 - Date.now())));
+    Promise.all([ready, together]).then(show);
+    setTimeout(show, Math.max(0, opened + 8000 - Date.now()));
+  }
   const tell = msg => { try { window.parent.postMessage({ dylanScreens: msg }, '*'); } catch (e) { /* no parent */ } };
   const realClose = window.close.bind(window);
   function close() { if (inFrame) tell('close'); else realClose(); }

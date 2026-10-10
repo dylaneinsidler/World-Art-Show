@@ -3,6 +3,11 @@
 What changed in each version of World Art Show, newest first. Every version has pictures in `screenshots\v<version>-<scene>`:
 after a change, bump `VERSION`, add it here, take a picture of both screens while it's open, and commit.
 
+## 2.8 (October 10, 2026)
+
+- **Both screens appear together**: each window now opens straight at full size on its own monitor (no small window jumping to full screen), and both stay dark for a moment and then appear at the same time.
+- **Its own icon in the Windows taskbar** while it's open, instead of Chrome's.
+
 ## 2.7 (October 10, 2026)
 
 - Inside the Morning and Night Screens, this app's own buttons and controls can be clicked now.
