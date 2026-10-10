@@ -3,6 +3,11 @@
 What changed in each version of World Art Show, newest first. Every version has pictures in `screenshots\v<version>-<scene>`:
 after a change, bump `VERSION`, add it here, take a picture of both screens while it's open, and commit.
 
+## 2.7 (October 10, 2026)
+
+- Inside the Morning and Night Screens, this app's own buttons and controls can be clicked now.
+- In the Morning and Night Screens, a click on an empty part of this app closes the Screens (as before), and its buttons and controls work.
+
 ## 2.6 (October 9, 2026)
 
 - Its name is now **Dylan's World Art Show**: the folder, the Desktop shortcut, the window and welcome screen, the
