@@ -3,6 +3,14 @@
 What changed in each version of World Art Show, newest first. Every version has pictures in `screenshots\v<version>-<scene>`:
 after a change, bump `VERSION`, add it here, take a picture of both screens while it's open, and commit.
 
+## 2.9 (October 11, 2026)
+
+- **On the iPad and iPhone, swipe up for the details:** what the piece is and what it's about, the artist (born,
+  where from, a short biography), a small map from the artist's country to where the piece is now, and the museum
+  that has it (on view or not). It's hidden until you swipe up (or tap "Details" at the bottom left); swipe it down,
+  or tap the art, to hide it again. While it's open the piece stays put. Swiping left and right still changes the piece.
+- Not on the iPad yet: it goes up when you say so.
+
 ## 2.8 (October 10, 2026)
 
 - **Both screens appear together**: each window now opens straight at full size on its own monitor (no small window jumping to full screen), and both stay dark for a moment and then appear at the same time.

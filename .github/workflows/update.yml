@@ -47,7 +47,7 @@ jobs:
       - name: Put the site together
         run: |
           mkdir site
-          cp -r index.html catalog.json manifest.json art.ico icons site/
+          cp -r index.html details.js details.css world-map.js country-facts.js catalog.json manifest.json art.ico icons site/
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

@@ -13,6 +13,7 @@
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="art.ico">
+<link rel="stylesheet" href="details.css">
 <style>
   :root {
     --bg: #0c0c0d;
@@ -133,6 +134,7 @@
 
 <script src="opened.js" onerror="void 0"></script>
 <script src="close.js"></script>
+<script src="details.js"></script>
 <script>
 'use strict';
 
@@ -410,6 +412,7 @@ function show({ work, img }) {
   setTimeout(() => { if (slides[front] !== prev) prev.classList.remove('shown'); }, 1500);
   $('welcome').classList.add('gone');
   shownWork = work;
+  window.ArtDetails?.newPiece(work);   // the details sheet (details.js) starts hidden for every new piece
 }
 
 // ------------------------------------------------------------------ the show
@@ -421,14 +424,18 @@ let timer = null;
 let timeLeft = 0;        // ms until the next piece, counting only time the show is actually on screen
 let timerStarted = 0;
 let paused = false;
+let held = false;        // the details sheet is open (iPad and iPhone): the piece stays until it's closed
 let busy = false;
 
-function setStatus(text) { statusEl.textContent = text || ''; }
+function setStatus(text) {
+  statusEl.textContent = text || '';
+  document.body.classList.toggle('has-status', !!text);   // the "Details" handle gives way to it
+}
 
 function runTimer() {
   clearTimeout(timer);
   timer = null;
-  if (!paused && !document.hidden) {
+  if (!paused && !held && !document.hidden) {
     timerStarted = Date.now();
     timer = setTimeout(advance, timeLeft);
   }
@@ -486,6 +493,15 @@ function togglePause() {
   document.body.classList.toggle('paused', paused);       // shows the Digital art button (iPad)
   if (paused) { clearTimeout(timer); timer = null; tellRightScreen(); } else runTimer();   // resume where it left off
 }
+
+// While the details sheet (details.js) is open the clock waits, and picks up where it was when it closes.
+function holdClock(on) {
+  if (on === held) return;
+  if (on && timer) timeLeft = Math.max(0, timeLeft - (Date.now() - timerStarted));
+  held = on;
+  if (held) { clearTimeout(timer); timer = null; } else runTimer();
+}
+window.ArtShow = { holdClock, current: () => shownWork };
 
 // ------------------------------------------------------------------ the right screen (desktop show only)
 
@@ -552,13 +568,15 @@ document.addEventListener('keydown', e => {
 });
 if (!touch && !DESKTOP) document.addEventListener('dblclick', toggleFullscreen);
 
-// Touch (iPad): swipe left for the next piece, right to go back, tap to pause.
+// Touch (iPad): swipe left for the next piece, right to go back, tap to pause. Swiping up opens the details
+// sheet (details.js), which handles its own swipes and taps first.
 let touchStart = null;
 document.addEventListener('touchstart', e => {
   const t = e.touches[0];
   touchStart = e.touches.length === 1 ? { x: t.clientX, y: t.clientY, at: Date.now() } : null;
 }, { passive: true });
 document.addEventListener('touchend', e => {
+  if (window.ArtDetails?.claimed(e)) { touchStart = null; return; }
   if (!touchStart || e.target.closest('a')) return;   // tapping the link opens the piece's page
   if (e.target.closest('#digital, #hideThis')) { touchStart = null; return; }   // their clicks (below) do it
   const t = e.changedTouches[0], dx = t.clientX - touchStart.x, dy = t.clientY - touchStart.y;

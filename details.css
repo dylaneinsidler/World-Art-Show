@@ -1,0 +1,99 @@
+/* The details sheet on the iPad and iPhone (details.js): swipe up on the art to see the story, the artist,
+   where it came from on a map, and where it is now. Hidden until asked for. Not used by the PC's two screens. */
+#details, #detailsScrim, #detailsHandle { --accent: #e0a458; --sheet: rgba(22, 21, 20, .90); --line: rgba(243, 240, 234, .13);
+  --sea: rgba(255, 255, 255, .04); --land: rgba(243, 240, 234, .17); --sans: -apple-system, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --serif: Georgia, "Times New Roman", serif; }
+
+/* The little "Details" handle, bottom left, where "Paused" shows when the show is paused. */
+#detailsHandle {
+  position: absolute; z-index: 2; left: calc(var(--side) - 10px); bottom: var(--bottom); height: var(--label-h);
+  display: none; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  padding: 0 10px; border: 0; background: none; color: var(--ink-3); cursor: pointer;
+  font: 600 10px var(--sans); letter-spacing: .16em; text-transform: uppercase; opacity: .8;
+  -webkit-tap-highlight-color: transparent;
+}
+#detailsHandle svg { width: 18px; height: 10px; }
+body.details-ready #detailsHandle { display: flex; }
+body.paused #detailsHandle, body.has-status #detailsHandle, body.details-open #detailsHandle { display: none; }
+
+/* Behind the sheet, the art dims a little; a tap there closes the sheet. */
+#detailsScrim {
+  position: absolute; inset: 0; z-index: 5; background: rgba(0, 0, 0, .38);
+  opacity: 0; visibility: hidden; transition: opacity .38s ease, visibility 0s linear .38s;
+}
+body.details-open #detailsScrim { opacity: 1; visibility: visible; transition: opacity .38s ease; }
+
+#details {
+  position: absolute; z-index: 6; left: 0; right: 0; bottom: 0; margin: 0 auto;
+  width: min(100%, 1100px); height: min(80vh, 780px);
+  display: flex; flex-direction: column;
+  background: var(--sheet); color: var(--ink);
+  -webkit-backdrop-filter: blur(28px) saturate(1.25); backdrop-filter: blur(28px) saturate(1.25);
+  border-radius: 22px 22px 0 0; box-shadow: 0 -12px 50px rgba(0, 0, 0, .45);
+  border: 1px solid var(--line); border-bottom: 0;
+  transform: translateY(105%); visibility: hidden;
+  transition: transform .42s cubic-bezier(.2, .85, .25, 1), visibility 0s linear .42s;
+  font-family: var(--sans);
+}
+body.details-open #details { transform: translateY(0); visibility: visible; transition: transform .42s cubic-bezier(.2, .85, .25, 1); }
+/* While a finger moves the sheet, it follows the finger (details.js sets where); let go and it settles. */
+body.details-dragging #details, body.details-dragging #detailsScrim { transition: none; visibility: visible; }
+@media (orientation: portrait) { #details { height: 78vh; } }
+
+#details .grab { flex: none; height: 26px; display: flex; align-items: center; justify-content: center; cursor: grab; }
+#details .grab::before { content: ""; width: 40px; height: 5px; border-radius: 3px; background: rgba(243, 240, 234, .32); }
+
+#details .scroll {
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  padding: 2px max(28px, env(safe-area-inset-right)) calc(28px + env(safe-area-inset-bottom)) max(28px, env(safe-area-inset-left));
+}
+
+#details .eyebrow { display: flex; align-items: center; gap: .55em; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); }
+#details .eyebrow img { height: 13px; border-radius: 2px; box-shadow: 0 0 0 1px rgba(128, 128, 128, .3); }
+#details h2.title { margin: 8px 0 4px; font: italic 400 clamp(23px, 3.2vw, 32px)/1.15 var(--serif); }
+#details .byline { font-size: 16px; font-weight: 600; }
+#details .byline .life { font-weight: 400; color: var(--ink-2); margin-left: .5em; }
+#details .facts { margin-top: 6px; font-size: 13.5px; line-height: 1.5; color: var(--ink-2); }
+#details .facts span + span::before { content: "·"; margin: 0 .55em; color: var(--ink-3); }
+
+#details .cols { display: grid; grid-template-columns: 1fr; gap: 0 36px; margin-top: 4px; }
+#details.wide .cols { grid-template-columns: 56fr 44fr; }
+#details h3 {
+  margin: 22px 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line);
+  font: 600 11px var(--sans); letter-spacing: .22em; text-transform: uppercase; color: var(--accent);
+}
+#details .prose p { margin: 0 0 10px; font: 15.5px/1.6 var(--serif); color: var(--ink-2); }
+#details .prose p.note { font: italic 13.5px/1.5 var(--sans); color: var(--ink-3); }
+#details .lines div { font-size: 14px; line-height: 1.55; color: var(--ink-2); }
+#details .lines strong { color: var(--ink); font-weight: 600; }
+#details .lines .now { color: var(--ink); }
+#details .lines .now::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 7px; border-radius: 50%; background: var(--ink-3); vertical-align: 1px; }
+#details .lines .now.on::before { background: #7cc48a; }
+#details .person { display: flex; gap: 14px; align-items: flex-start; }
+#details .person img { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; flex: none; background: rgba(255, 255, 255, .06); margin-top: 3px; }
+#details .person .prose { flex: 1; min-width: 0; }
+#details .loading { font: italic 13.5px var(--sans); color: var(--ink-3); }
+
+#details .map { position: relative; margin-top: 22px; aspect-ratio: 2 / 1; border-radius: 12px; overflow: hidden; background: var(--sea); border: 1px solid var(--line); }
+#details .map svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#details .map .land { fill: var(--land); stroke: rgba(22, 21, 20, .9); stroke-width: .6; vector-effect: non-scaling-stroke; fill-rule: evenodd; }
+#details .map .land.home { fill: var(--accent); fill-opacity: .85; }
+#details .map .route { fill: none; stroke: rgba(243, 240, 234, .8); stroke-width: 1.5; stroke-dasharray: 4 5; vector-effect: non-scaling-stroke; }
+#details .map .dot { fill: var(--accent); stroke: #161514; }
+#details .map .ring { fill: none; stroke: var(--accent); animation: details-ping 2.4s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+#details .map .museum { fill: #f3f0ea; stroke: #161514; }
+#details .map .place { fill: #f3f0ea; font-family: var(--sans); font-weight: 600; paint-order: stroke; stroke: rgba(22, 21, 20, .85); }
+@keyframes details-ping { from { transform: scale(.6); opacity: 1; } to { transform: scale(2.6); opacity: 0; } }
+#details .key { margin-top: 7px; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--ink-3); }
+#details .key i { display: inline-block; width: 9px; height: 9px; margin-right: 6px; vertical-align: -1px; }
+#details .key .k-home i { border-radius: 50%; background: var(--accent); }
+#details .key .k-museum i { background: #f3f0ea; }
+
+#details .links a {
+  display: inline-flex; align-items: center; gap: 6px; margin: 0 8px 8px 0; padding: 8px 14px;
+  border-radius: 999px; border: 1px solid var(--line); background: rgba(255, 255, 255, .05);
+  color: var(--ink); font-size: 13.5px; text-decoration: none;
+}
+#details .links a::after { content: "↗"; color: var(--ink-3); }
+#details .credit { margin-top: 10px; font-size: 11.5px; line-height: 1.5; color: var(--ink-3); }
