@@ -2,7 +2,7 @@
 // - DylanClose.isControl(el): is this a button, link, slider or anything else meant to be clicked? A click there does
 //   its own job and never closes the app; only a click on empty space closes (in the apps that close that way).
 // - Inside Dylan's Morning or Night Screens (or the App Tester) the app sits in a frame, where it can't close itself:
-//   closing then asks the Screens to close instead, and a click on empty space or the arrow keys go to the Screens.
+//   closing then asks the Screens to close instead, and a click on empty space, Esc or the arrow keys go to the Screens.
 window.DylanClose = (() => {
   const inFrame = window.parent !== window;
   const CONTROLS = 'a[href], button, input, select, textarea, label, summary, option, video, audio, iframe, ' +
@@ -42,6 +42,7 @@ window.DylanClose = (() => {
     document.addEventListener('click', e => { if (!e.defaultPrevented && !isControl(e.target)) close(); });
     document.addEventListener('keydown', e => {
       if (['ArrowLeft', 'ArrowRight', ' '].includes(e.key) && !isControl(e.target)) tell('key:' + e.key);
+      else if (e.key === 'Escape' && !e.defaultPrevented) close();   // Esc closes the Screens, whatever the app
     });
     let moved = 0;   // the Screens' buttons come back when the mouse moves, over the app too
     document.addEventListener('mousemove', () => { if (Date.now() - moved > 500) { moved = Date.now(); tell('move'); } });
