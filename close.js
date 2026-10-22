@@ -36,6 +36,10 @@ window.DylanClose = (() => {
   const tell = msg => { try { window.parent.postMessage({ dylanScreens: msg }, '*'); } catch (e) { /* no parent */ } };
   const realClose = window.close.bind(window);
   function close() { if (inFrame) tell('close'); else realClose(); }
+  // The X in the corner closes the moment it's clicked, in every app and whatever screen is up. It's a control (it
+  // shows a pointer), so the empty-space rule below never counted it: the Weather X did nothing (October 22, 2026).
+  const X = '.close-x, #close, [title^="Close"]';
+  document.addEventListener('click', e => { if (e.target.closest && e.target.closest(X)) close(); }, true);
   if (inFrame) {
     window.close = close;   // every app's X and Esc now close the Screens around it
     // An empty spot clicked closes the Screens (as clicking them always did); controls work as usual.
