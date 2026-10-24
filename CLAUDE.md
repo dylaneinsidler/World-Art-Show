@@ -10,11 +10,9 @@ Any change Dylan asks for that changes the app makes a new version. After making
 
 1. Bump `VERSION`: 2.5 → 2.6 for changes and additions, 3.0 for a big redesign.
 2. Add the version to the top of `CHANGELOG.md`, in plain English.
-3. Take pictures of both screens side by side into `screenshots\v<version>-<scene>.jpg`. There's no tool for it yet: add
-   the shared `tools\take-screenshots.ps1` and `tools\screenshots.mjs` from Dylan's Jiu-Jitsu & Judo, with a
-   `tools\screenshots.json` whose `left` and `right` are `http://localhost:47236/index.html?desktop` and
-   `http://localhost:47236/about.html` (scenes `?theme=dark`, `?theme=light`), and have the script start
-   `launch.ps1 -Preview -Port 47236` first and stop it after. Look at them. Never replace an older version's pictures.
+3. Run `.\tools\take-screenshots.ps1` (since 2.10: the shared picture tool; it starts `launch.ps1 -Preview -Port 47236`
+   first and stops it after). It writes `screenshots\v<version>-<scene>.jpg`, both screens side by side, for the scenes
+   in `tools\screenshots.json`. Look at them. Never replace an older version's pictures.
 4. Point the picture at the top of `README.md` at the new version's folder.
 5. Commit everything, screenshots included, and tag the commit `v<version>`.
 6. Only if the change is meant for the iPad, and after asking Dylan once: merge (not rebase) GitHub's DeviantArt
@@ -45,3 +43,9 @@ Any change Dylan asks for that changes the app makes a new version. After making
 - The Morning and Night Screens show the AppData copy and pick up edits made here within a minute while they're
   open (7 to 10:30 AM, 8 to 11:30 PM).
 - When starting `powershell.exe` from the PowerShell 7 tool, clear `$env:PSModulePath` first.
+- Loading the art (2.10): the first piece of an opening races three pieces from different museums; a picture
+  gets 15 s; a server that times out is skipped for 3 hours (`worldArtShow.hostDown` in localStorage, kept between
+  openings because the Screens and the iPad cycler reopen the show every turn); the loaded next piece is saved as
+  `worldArtShow.ready` for the next opening. `<meta name="referrer" content="no-referrer">` stays: the Art Institute
+  of Chicago answers 403 to a localhost Referer. The National Gallery of Denmark (iip.smk.dk) wasn't answering at all
+  on 2026-10-23.
