@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Dylan's World Art Show</title>
 <meta name="theme-color" content="#0c0c0d">
+<!-- The art is asked for without saying which page wants it: the Art Institute of Chicago refuses pictures for a
+     page on this computer (localhost, where the PC and the Screens run the show), so they never showed there. -->
+<meta name="referrer" content="no-referrer">
 <!-- Added to an iPad home screen, it opens full screen like an app. -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -139,7 +142,7 @@
 'use strict';
 
 const SECONDS_PER_PIECE = 60;
-const LOAD_TIMEOUT_MS = 40000;          // some museum servers take a while to make the image
+const LOAD_TIMEOUT_MS = 15000;          // a museum server that hasn't sent the picture by then is stuck
 const CATALOG_REFRESH_MS = 60 * 60e3;   // while open, check for a newer art list every hour
 // How often an artist comes up, by where their work comes from. The museums' picks count fully; DeviantArt
 // (staff picks from a huge site) counts half, so it doesn't crowd out the museums.
@@ -264,9 +267,24 @@ const seen = new Set(load('seen', []));                // pages already shown, s
 let recentArtists = load('recentArtists', []);          // no artist twice until many others have had a turn
 let recentCountries = load('recentCountries', []);      // and no country twice in a row
 // A museum whose image server keeps refusing (on October 9 the Art Institute of Chicago's turned everyone away) is
-// set aside for half an hour, so the show goes on with the others instead of stalling.
-const hostFails = new Map(), hostDownUntil = new Map();
+// set aside for half an hour, so the show goes on with the others instead of stalling. One that doesn't answer
+// at all (on October 23 the National Gallery of Denmark's sent nothing for over a minute) is set aside for three
+// hours. That's remembered between openings: the Morning and Night Screens and the iPad's cycler open the show
+// fresh every turn, and each turn used to wait on the same stuck server again.
+const hostFails = new Map(), hostDownUntil = new Map(Object.entries(load('hostDown', {})));
 const hostOf = url => { try { return new URL(url).host; } catch { return ''; } };
+function setHostAside(host, ms) {
+  hostDownUntil.set(host, Date.now() + ms);
+  hostFails.set(host, 0);
+  save('hostDown', Object.fromEntries([...hostDownUntil].filter(([, until]) => until > Date.now())));
+}
+function noteFailure(url, timedOut) {
+  failed.add(url);
+  const host = hostOf(url), n = (hostFails.get(host) || 0) + 1;
+  hostFails.set(host, n);
+  if (timedOut) setHostAside(host, 3 * 3600e3);
+  else if (n >= 3) setHostAside(host, 30 * 60e3);
+}
 const usableImage = w => !failed.has(w.image) && !((hostDownUntil.get(hostOf(w.image)) || 0) > Date.now());
 const failed = new Set();                               // images that wouldn't load this session
 
@@ -328,30 +346,60 @@ function loadImage(url) {
   });
 }
 
-// Finds a piece whose image actually loads. Tries several, since a museum server can be slow or down.
-async function prepareNext() {
-  const avoid = new Set();
-  for (let attempt = 0; attempt < 12; attempt++) {
-    const work = pickWork(avoid);
-    if (!work) break;
-    avoid.add(work.artistKey);
-    let img;
-    try {
-      img = await loadImage(work.image);
-    } catch {
-      failed.add(work.image);
-      const host = hostOf(work.image), n = (hostFails.get(host) || 0) + 1;
-      hostFails.set(host, n);
-      if (n >= 3) { hostDownUntil.set(host, Date.now() + 30 * 60e3); hostFails.set(host, 0); }
-      continue;
-    }
-    hostFails.set(hostOf(work.image), 0);
+// Loads one piece's picture: { work, img }, or null if it won't load or doesn't fit the screen.
+function tryWork(work) {
+  return loadImage(work.image).then(img => {
     hostFails.set(hostOf(work.image), 0);
     // The art list's size can be missing or off; the loaded picture has the real shape.
     work.shape = shapeOf(img.naturalWidth, img.naturalHeight);
-    if (fits(work.shape)) return { work, img };
+    return fits(work.shape) ? { work, img } : null;
+  }, err => { noteFailure(work.image, err.message === 'timeout'); return null; });
+}
+
+// The first of several pieces whose picture arrives, or null if none does.
+function firstLoaded(works) {
+  return new Promise(resolve => {
+    let left = works.length;
+    for (const work of works) tryWork(work).then(r => { if (r) resolve(r); else if (--left === 0) resolve(null); });
+  });
+}
+
+// Finds a piece whose image actually loads. Tries several, since a museum server can be slow or down. For the
+// first piece of an opening it tries three at once and shows whichever comes first, so a slow museum never
+// keeps the screen on "Getting the newest art…"; `ready` is a piece the last opening had already loaded.
+async function prepareNext(atOnce = 1, ready = null) {
+  const avoid = new Set();
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const works = ready ? [ready] : [];
+    ready = null;
+    // Pieces tried together come from different museums where it can be, so one stuck server can't hold them all up.
+    const museum = w => hostOf(w.image).replace(/^\d+\./, '');      // 0.api.artsmia.org ... 6.api.artsmia.org are one
+    const museums = new Set(works.map(museum));
+    for (let picks = 0; works.length < atOnce && picks < 12; picks++) {
+      const work = pickWork(avoid);
+      if (!work) break;
+      avoid.add(work.artistKey);
+      if (museums.has(museum(work)) && picks < 8) continue;
+      museums.add(museum(work));
+      works.push(work);
+    }
+    if (!works.length) break;
+    const found = await firstLoaded(works);
+    if (found) return found;
   }
   return null;
+}
+
+// The next piece, once it has loaded, is kept for the next opening too: its picture is then already on this
+// computer or iPad, so that opening starts with it at once.
+function keepForNextOpening(next) {
+  next.then(r => { if (r && upcoming === next) save('ready', r.work); });
+}
+function readyFromLastOpening() {
+  const w = load('ready', null);
+  if (!w || !w.image || !w.page || seen.has(w.page) || hiddenPages.has(w.page) || failed.has(w.image)) return null;
+  if (!showDigital && w.source === 'DeviantArt') return null;
+  return usableImage(w) ? w : null;
 }
 
 // ------------------------------------------------------------------ showing it
@@ -460,7 +508,7 @@ async function advance() {
     ready = await loadImage(work.image).then(img => ({ work, img }), () => null);
     if (ready) place++;
   } else {
-    ready = await (upcoming || prepareNext());
+    ready = await (upcoming || (history.length ? prepareNext() : prepareNext(3, readyFromLastOpening())));
     upcoming = null;
     if (ready) { history.push(ready.work); place = history.length - 1; remember(ready.work); }
   }
@@ -472,7 +520,7 @@ async function advance() {
     $('welcomeNote').textContent = "Can't reach the art collections. Is the internet connected? Trying again…";
   }
   busy = false;
-  if (!upcoming) upcoming = prepareNext();
+  if (!upcoming) { upcoming = prepareNext(); keepForNextOpening(upcoming); }
   schedule(ready ? SECONDS_PER_PIECE * 1000 : 15000);
 }
 

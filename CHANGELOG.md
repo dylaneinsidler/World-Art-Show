@@ -3,6 +3,22 @@
 What changed in each version of World Art Show, newest first. Every version has pictures in `screenshots\v<version>-<scene>`:
 after a change, bump `VERSION`, add it here, take a picture of both screens while it's open, and commit.
 
+## 2.10 (October 23, 2026)
+
+- **The art shows up right away, every time.** On October 23 the National Gallery of Denmark's picture server
+  stopped answering, and the show waited 40 seconds on each of its pieces before trying another. The Morning and
+  Night Screens and the iPad's cycler open the show fresh for each turn, so a turn could end on "Getting the newest
+  art…" with no art at all. Now:
+  - it tries three pieces from three different museums at once and shows whichever arrives first;
+  - it gives up on a picture after 15 seconds, and a museum whose server doesn't answer is skipped for three
+    hours, remembered from one opening to the next;
+  - the next piece, already loaded during a turn, is the first piece of the next turn, so it appears in under a
+    second.
+- **The Art Institute of Chicago's art shows on the PC again.** Chicago turns away picture requests from a page on
+  this computer, which is how the PC and the Screens run the show, so its 300-odd pieces never appeared there. The
+  show now asks for pictures without saying which page wants them.
+- Pictures of each version are taken with the shared picture tool now (`tools	ake-screenshots.ps1`).
+
 ## 2.9 (October 11, 2026)
 
 - **On the iPad and iPhone, swipe up for the details:** what the piece is and what it's about, the artist (born,

@@ -1,0 +1,1 @@
+{ "left": "http://localhost:47236/index.html?desktop", "right": "http://localhost:47236/about.html", "wait": 12000, "scenes": [["01-dark", "?theme=dark"], ["02-light", "?theme=light"]] }
