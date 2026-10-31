@@ -279,7 +279,7 @@ if (-not $Preview) {
             "--user-data-dir=`"$profileDir`"",
             '--no-first-run', '--no-default-browser-check', '--hide-crash-restore-bubble', '--disable-features=Translate',
             '--autoplay-policy=no-user-gesture-required',
-            "--app=http://localhost:$port/$page", "--window-position=$x,$y", "--window-size=$($screen.Bounds.Width),$($screen.Bounds.Height)", '--kiosk'
+            "--app=http://localhost:$port/$page", "--window-position=$x,$y", "--window-size=$($screen.Bounds.Width),$($screen.Bounds.Height)", $screenMode
         )
     }
 
@@ -287,9 +287,11 @@ if (-not $Preview) {
 # The moment the screens open: both pages appear together at the same moment just after it (close.js reads this).
 Set-Content (Join-Path $PSScriptRoot 'opened.js') "window.DYLAN_OPENED = $([DateTimeOffset]::Now.ToUnixTimeMilliseconds());" -Encoding ASCII
     $screens = [System.Windows.Forms.Screen]::AllScreens | Sort-Object { $_.Bounds.X }
+    . (Join-Path $PSScriptRoot 'one-monitor.ps1')   # with one monitor: both screens side by side on it
     # With one monitor, the art opens last, so it's on top.
     $panels = if ($screens.Count -gt 1) { @((Open-Panel 'art' 'index.html?desktop' $screens[0]), (Open-Panel 'about' 'about.html' $screens[-1])) }
               else { @((Open-Panel 'about' 'about.html' $screens[0]), (Open-Panel 'art' 'index.html?desktop' $screens[0])) }
+    Fit-OneMonitor $panels
 
     Add-Type @"
 using System;

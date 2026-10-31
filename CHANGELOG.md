@@ -3,6 +3,11 @@
 What changed in each version of World Art Show, newest first. Every version has pictures in `screenshots\v<version>-<scene>`:
 after a change, bump `VERSION`, add it here, take a picture of both screens while it's open, and commit.
 
+## 2.11 (October 31, 2026)
+
+- **Works on one monitor.** With only one monitor, both screens now open side by side on it, each a smaller copy of what it shows on
+  its own monitor, with everything working as usual. With two monitors nothing changes.
+
 ## 2.10 (October 23, 2026)
 
 - **The art shows up right away, every time.** On October 23 the National Gallery of Denmark's picture server
