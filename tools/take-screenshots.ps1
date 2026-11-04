@@ -26,7 +26,7 @@ $preview = $null
 try {
     if (-not (Test-Preview)) {
         $preview = Start-Process powershell.exe -WindowStyle Hidden -PassThru -ArgumentList @(
-            '-MTA', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$(Join-Path $root 'launch.ps1')`"", '-Preview', '-Port', $port)
+            '-MTA', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$(Join-Path $root 'launch.ps1')`"", '-Preview', '-Port', $port, '-Test')
         for ($i = 0; $i -lt 30 -and -not (Test-Preview); $i++) { Start-Sleep -Seconds 1 }
         if (-not (Test-Preview)) { throw "The preview didn't start on port $port." }
     }

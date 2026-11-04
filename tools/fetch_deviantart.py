@@ -194,6 +194,15 @@ MEDIUM_TAGS = re.compile(r'paint|acrylic|^oil|oilpaint|oils$|watercol|aquarel|go
                          r'printmaking|lineart|digitalart|digital_art|digitalpaint|digitalillustration|procreate|krita|'
                          r'clipstudio|csp|artrage|ibispaint|medibang|paintool|comicart|vectorart|fractal|blender|'
                          r'zbrush|3dart|3drender')   # style words (fantasyart, conceptart...) don't say how it was made
+# Made by hand or on a computer (2.12): "Digital art: Off" still shows DeviantArt's hand-made pieces, the ones tagged
+# with a traditional medium and nothing digital. A piece with any digital tag counts as digital.
+HAND_TAGS = re.compile(r'^traditional|traditionalart|traditional_art|watercol|aquarel|gouache|acrylic|^oil|oilpaint|oils$|'
+                       r'oiloncanvas|^ink$|inkdrawing|penandink|pencil|graphite|charcoal|^pastels?$|softpastel|oilpastel|'
+                       r'chalkpastel|pastel(drawing|painting|art)|^canvas$|oncanvas|tempera|'
+                       r'linocut|woodcut|etching|lithograph|screenprint|printmaking|copic|marker|crayon|coloredpencil|'
+                       r'colouredpencil|sketchbook|pleinair')
+DIGITAL_TAGS = re.compile(r'digital|procreate|krita|clipstudio|csp|artrage|ibispaint|medibang|paintool|photoshop|vector|'
+                          r'fractal|blender|zbrush|3d|render|wacom|cintiq|sai$|illustrator|sketchbookpro|autodesk')
 WRITING_TAGS = re.compile(r'^(poetry|poem|poems|freeverse|spokenword|prose|story|stories|literature|writing|haiku|'
                           r'quote|quotes|shortstory|flashfiction)$')
 
@@ -251,6 +260,8 @@ def pick(rows, tags, countries):
         year = time.gmtime(int(r['published_time'])).tm_year if r.get('published_time') else ''
         out.append(item('DeviantArt', r['url'], content['src'], r.get('title'), str(year), user,
                         0, [country], content.get('width'), content.get('height'), ' '.join(t)))
+        hand = any(HAND_TAGS.search(x) for x in t) and not any(DIGITAL_TAGS.search(x) for x in t)
+        out[-1]['medium'] = 'hand' if hand else 'digital'
     print(f'{len(rows)} Daily Deviations, {len(out)} kept. Left out: '
           + ', '.join(f'{n} {why}' for why, n in skipped.most_common()))
     if unknown:
@@ -309,7 +320,7 @@ def main():
              if x['deviationid'] not in staff_picked]
     tags = look_up_tags(access, rows)
     works = pick(rows, tags, countries)
-    fields = ['artist', 'country', 'title', 'date', 'source', 'page', 'image', 'w', 'h']
+    fields = ['artist', 'country', 'title', 'date', 'source', 'page', 'image', 'w', 'h', 'medium']
     works = sorted(({f: w[f] for f in fields} for w in works), key=lambda w: w['page'])
     send_to_github({'collected': time.strftime('%Y-%m-%d %H:%M'), 'works': works})
     (HOME / 'deviantart-last-run.txt').write_text(time.strftime('%Y-%m-%d %H:%M:%S'), encoding='utf-8')

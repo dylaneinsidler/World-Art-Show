@@ -3,6 +3,23 @@
 What changed in each version of World Art Show, newest first. Every version has pictures in `screenshots\v<version>-<scene>`:
 after a change, bump `VERSION`, add it here, take a picture of both screens while it's open, and commit.
 
+## 2.12 (November 3, 2026)
+
+Dylan: "I have not been seeing new art really, and I've been seeing a lot of repeats."
+
+- **New art every day, with Digital art still off.** "Off" used to leave out everything from DeviantArt, so the show
+  was only the museums' 614 pieces, which hardly ever change. Now Off means what it says, no digital art: the
+  museums' pieces plus DeviantArt's hand-made paintings, drawings, watercolors and prints (about 5,200 now, judged by
+  each piece's tags, most of them made this year), with more arriving every day. On still adds the digital art.
+- **No more repeats.** Once all of an artist's pieces had been shown, the show could still pick that artist and show
+  one of them again, so after a few weeks most pieces were repeats. Now it only shows pieces it hasn't shown yet;
+  only when every piece has had its turn does the half shown longest ago come round again.
+- **One memory on the PC.** The show's own window, the Morning Screens, the Night Screens and the App Tester each
+  kept their own list of what they'd shown, so each showed again what the others just had. They now share one list
+  (`seen.txt`, kept by the show's server). The iPad keeps its own.
+- **Fewer "workflow failed" emails.** On November 3 GitHub's publishing service failed for a moment (its own server
+  error, nothing wrong with the show). The update now waits two minutes and tries again before giving up.
+
 ## 2.11 (October 31, 2026)
 
 - **Works on one monitor.** With only one monitor, both screens now open side by side on it, each a smaller copy of what it shows on
@@ -22,7 +39,7 @@ after a change, bump `VERSION`, add it here, take a picture of both screens whil
 - **The Art Institute of Chicago's art shows on the PC again.** Chicago turns away picture requests from a page on
   this computer, which is how the PC and the Screens run the show, so its 300-odd pieces never appeared there. The
   show now asks for pictures without saying which page wants them.
-- Pictures of each version are taken with the shared picture tool now (`tools	ake-screenshots.ps1`).
+- Pictures of each version are taken with the shared picture tool now (`tools\take-screenshots.ps1`).
 
 ## 2.9 (October 11, 2026)
 

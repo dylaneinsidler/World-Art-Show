@@ -444,12 +444,17 @@ def main():
     final = sorted((it for works in per_artist.values() for it in works),
                    key=lambda it: (it['country'], it['artist'], it['title']))
 
-    fields = ['artist', 'country', 'title', 'date', 'source', 'page', 'image', 'w', 'h']   # w, h: image shape (0 = unknown)
+    # w, h: image shape (0 = unknown). medium: 'hand' (painted, drawn, printed: every museum piece, and DeviantArt's
+    # pieces tagged with a traditional medium) or 'digital'; the show's "Digital art: Off" keeps to 'hand' (2.12).
+    for it in final:
+        it['medium'] = it.get('medium') or ('digital' if it['source'] == 'DeviantArt' else 'hand')
+    fields = ['artist', 'country', 'title', 'date', 'source', 'page', 'image', 'w', 'h', 'medium']
     catalog = {'built': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC'),
                'fields': fields, 'works': [[it[f] for f in fields] for it in final]}
     OUT.write_text(json.dumps(catalog, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
 
-    by_source = Counter(it['source'] for it in final)
+    by_source = Counter(it['source'] + (' (hand-made)' if it['source'] == 'DeviantArt' and it['medium'] == 'hand' else '')
+                        for it in final)
     countries = Counter(it['country'].split(' / ')[0] for it in final)
     artists = {(it['artist'], it['country']) for it in final}
     print(f'\n{len(final)} works by {len(artists)} living artists from {len(countries)} countries, made '

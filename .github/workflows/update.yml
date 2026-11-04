@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
+      url: ${{ steps.deploy.outputs.page_url || steps.deploy_again.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -53,7 +53,15 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
+      # GitHub's publishing service sometimes fails for a moment (November 3, 2026: "Failed to create deployment
+      # (status: 500)"), which sent Dylan a "workflow failed" email. So: try, and once more after a short wait.
       - id: deploy
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+      - if: steps.deploy.outcome == 'failure'
+        run: sleep 120
+      - id: deploy_again
+        if: steps.deploy.outcome == 'failure'
         uses: actions/deploy-pages@v4
 
       # GitHub switches off scheduled runs in a repository with no commits for 60 days.

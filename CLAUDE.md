@@ -43,6 +43,13 @@ Any change Dylan asks for that changes the app makes a new version. After making
 - The Morning and Night Screens show the AppData copy and pick up edits made here within a minute while they're
   open (7 to 10:30 AM, 8 to 11:30 PM).
 - When starting `powershell.exe` from the PowerShell 7 tool, clear `$env:PSModulePath` first.
+- What it shows (2.12): "Digital art: Off" (the usual) means art made by hand: museum pieces and DeviantArt pieces whose
+  `medium` is `hand` (fetch_deviantart.py: a traditional-medium tag, `HAND_TAGS`, and no digital one, `DIGITAL_TAGS`; the
+  catalog's `medium` column, build_catalog.py). `pickWork` takes only unseen pieces; when every fitting piece is seen,
+  `forgetOldestSeen` lets the older half come round again. On the PC the seen list is shared by every copy through
+  launch.ps1's `/api/seen` (`seen.txt`); `-Test` (take-screenshots.ps1 passes it) keeps tests out of it. The Screens'
+  server (port 47235) runs the AppData copy of launch.ps1: after changing it, copy it there and restart that server.
+- GitHub sometimes fails the Pages deploy with a 500 (its own outage); update.yml retries once after two minutes.
 - Loading the art (2.10): the first piece of an opening races three pieces from different museums; a picture
   gets 15 s; a server that times out is skipped for 3 hours (`worldArtShow.hostDown` in localStorage, kept between
   openings because the Screens and the iPad cycler reopen the show every turn); the loaded next piece is saved as

@@ -177,9 +177,12 @@ let catalogBuilt = null, catalogCheckedAt = 0;
 let byCountry = new Map(), artistWeight = new Map(), countryWeight = new Map();
 let artistMemory = 0, countryMemory = 0;
 
-// Digital art (DeviantArt's picks) only when it's turned on: otherwise the show is the museums' paintings,
-// drawings, prints and the like. On the iPad the choice is kept on the iPad (tap to pause, then "Digital
-// art"); on the PC, launch.ps1 keeps it for every copy of the show (the switch is on the right screen).
+// Digital art only when it's turned on: otherwise the show is art made by hand, the museums' paintings, drawings
+// and prints, and DeviantArt's pieces tagged with a traditional medium (2.12: before, Off left out all of DeviantArt,
+// so the show had only the museums' few hundred pieces, which hardly ever change). On the iPad the choice is kept
+// on the iPad (tap to pause, then "Digital art"); on the PC, launch.ps1 keeps it for every copy of the show (the
+// switch is on the right screen).
+const isDigital = w => w.source === 'DeviantArt' && w.medium !== 'hand';
 let showDigital = DESKTOP ? false : load('digital', false);
 let lastCatalog = null;
 
@@ -205,7 +208,7 @@ function setDigital(on) {
   $('digital').classList.toggle('on', on);
   if (lastCatalog) { useCatalog(lastCatalog); upcoming = null; }
   // Turned off with a digital piece on screen: on to a museum piece now.
-  if (!on && shownWork && shownWork.source === 'DeviantArt' && !paused) advance();
+  if (!on && shownWork && isDigital(shownWork) && !paused) advance();
 }
 
 async function fetchCatalog() {
@@ -222,11 +225,11 @@ function useCatalog(catalog) {
   byCountry = new Map();
   artistWeight = new Map();
   for (const r of catalog.works) {
-    if (!showDigital && r[col.source] === 'DeviantArt') continue;
-    if (hiddenPages.has(r[col.page]) || UNWANTED.test(r[col.title] || '')) continue;
     const w = { artist: r[col.artist], country: r[col.country], title: r[col.title], date: r[col.date],
-                source: r[col.source], page: r[col.page], image: r[col.image],
+                source: r[col.source], page: r[col.page], image: r[col.image], medium: r[col.medium],
                 shape: shapeOf(r[col.w], r[col.h]) };
+    if (!showDigital && isDigital(w)) continue;
+    if (hiddenPages.has(w.page) || UNWANTED.test(w.title || '')) continue;
     const country = w.country.split(' / ')[0];
     w.artistKey = w.artist + '|' + w.country;
     if (!byCountry.has(country)) byCountry.set(country, new Map());
@@ -270,9 +273,12 @@ let recentCountries = load('recentCountries', []);      // and no country twice 
 // set aside for half an hour, so the show goes on with the others instead of stalling. One that doesn't answer
 // at all (on October 23 the National Gallery of Denmark's sent nothing for over a minute) is set aside for three
 // hours. That's remembered between openings: the Morning and Night Screens and the iPad's cycler open the show
-// fresh every turn, and each turn used to wait on the same stuck server again.
+// fresh every turn, and each turn used to wait on the same stuck server again. DeviantArt's pictures all come from
+// one server, which is most of the show since 2.12, so it's only set aside for ten minutes; and a picture that ran
+// out of time while the show was hidden (an iPad asleep) doesn't count against its server.
 const hostFails = new Map(), hostDownUntil = new Map(Object.entries(load('hostDown', {})));
 const hostOf = url => { try { return new URL(url).host; } catch { return ''; } };
+const isDeviantArtHost = host => /(^|\.)wixmp\.com$|(^|\.)deviantart\.(net|com)$/.test(host);
 function setHostAside(host, ms) {
   hostDownUntil.set(host, Date.now() + ms);
   hostFails.set(host, 0);
@@ -282,15 +288,46 @@ function noteFailure(url, timedOut) {
   failed.add(url);
   const host = hostOf(url), n = (hostFails.get(host) || 0) + 1;
   hostFails.set(host, n);
-  if (timedOut) setHostAside(host, 3 * 3600e3);
+  if (isDeviantArtHost(host)) { if (n >= 3) setHostAside(host, 10 * 60e3); }
+  else if (timedOut) setHostAside(host, 3 * 3600e3);
   else if (n >= 3) setHostAside(host, 30 * 60e3);
 }
 const usableImage = w => !failed.has(w.image) && !((hostDownUntil.get(hostOf(w.image)) || 0) > Date.now());
 const failed = new Set();                               // images that wouldn't load this session
 
+// On the PC every copy of the show (its own window, the Morning and Night Screens, the App Tester) runs in its own
+// browser and kept its own memory, so each showed again what the others had shown. launch.ps1 keeps one list for all
+// of them (seen.txt, 2.12): it's read when the show opens, and each piece shown is added to it. When the server
+// answers, its list is the memory (plus any piece this copy couldn't tell it about yet); the first time, this copy's
+// own memory goes into it.
+const SHARED_SEEN = DESKTOP;
+let unsent = load('unsentSeen', []);
+async function postSeen(body) {
+  const r = await fetch('/api/seen', { method: 'POST', body: JSON.stringify(body) });
+  if (!r.ok) throw new Error('seen ' + r.status);
+}
+async function loadSharedSeen() {
+  if (!SHARED_SEEN) return;
+  try {
+    if (!load('seenShared', false)) { await postSeen({ pages: [...seen] }); save('seenShared', true); }
+    if (unsent.length) { await postSeen({ pages: unsent }); unsent = []; save('unsentSeen', []); }
+    const r = await fetch('/api/seen', { cache: 'no-store' });
+    const pages = r.ok ? await r.json() : null;
+    if (!Array.isArray(pages)) return;
+    seen.clear();
+    pages.forEach(p => seen.add(p));
+  } catch { /* the server is starting or closing: this copy's own memory will do */ }
+}
+function tellShownPiece(page) {
+  if (!SHARED_SEEN) return;
+  postSeen({ page }).catch(() => { unsent = [...unsent.filter(p => p !== page), page].slice(-500); save('unsentSeen', unsent); });
+}
+
 function remember(work) {
+  seen.delete(work.page);          // (a piece coming round again moves to the end)
   seen.add(work.page);
   if (seen.size > 30000) seen.delete(seen.values().next().value);
+  tellShownPiece(work.page);
   recentArtists = [...recentArtists.filter(a => a !== work.artistKey), work.artistKey].slice(-artistMemory);
   const country = work.country.split(' / ')[0];
   recentCountries = [...recentCountries.filter(c => c !== country), country].slice(-countryMemory);
@@ -309,39 +346,62 @@ function weightedItem(list, weightOf) {
   return list[list.length - 1];
 }
 
-function pickWork(avoid, retried = false) {
-  const recentA = new Set(recentArtists), recentC = new Set(recentCountries);
+// A country, then an artist there, then one of their pieces that ok() allows; recent countries and artists wait
+// their turn when useRecent is on.
+function chooseWork(ok, avoid, useRecent) {
+  const recentA = new Set(useRecent ? recentArtists : []), recentC = new Set(useRecent ? recentCountries : []);
   const options = [];
   for (const [country, artists] of byCountry) {
     if (recentC.has(country)) continue;
-    const fresh = [...artists.keys()].filter(a => !recentA.has(a) && !avoid.has(a) &&
-                                             artists.get(a).some(w => fits(w.shape) && usableImage(w)));
+    const fresh = [...artists.keys()].filter(a => !recentA.has(a) && !avoid.has(a) && artists.get(a).some(ok));
     if (fresh.length) options.push({ country, fresh });
   }
-  if (!options.length) {                 // everything is "recent": forget the history and start over
-    if (avoid.size || retried) return null;
-    recentArtists = []; recentCountries = [];
-    return pickWork(avoid, true);
-  }
+  if (!options.length) return null;
   const choice = weightedItem(options, o => countryWeight.get(o.country));
   const artist = weightedItem(choice.fresh, a => artistWeight.get(a));
-  const usable = byCountry.get(choice.country).get(artist).filter(w => fits(w.shape) && usableImage(w));
-  const unseen = usable.filter(w => !seen.has(w.page));
-  return randomItem(unseen.length ? unseen : usable);
+  return randomItem(byCountry.get(choice.country).get(artist).filter(ok));
+}
+
+// Only pieces that haven't been shown yet (2.12: an artist whose pieces had all been shown could still be picked,
+// and then one of them came back, so after a few weeks most of the show was repeats). If every new piece is by a
+// recent artist or country, those come anyway. If there are new pieces but none can load just now (their server is
+// set aside for a while), one shown before stands in and nothing is forgotten. Only when every piece that fits has
+// been shown does the half of them shown longest ago come round again.
+function pickWork(avoid) {
+  const loads = w => fits(w.shape) && usableImage(w), ok = w => loads(w) && !seen.has(w.page);
+  const work = chooseWork(ok, avoid, true) || chooseWork(ok, avoid, false);
+  if (work || avoid.size || !byCountry.size) return work;
+  const fitting = [];
+  for (const artists of byCountry.values()) for (const ws of artists.values()) for (const w of ws) if (fits(w.shape)) fitting.push(w);
+  if (!fitting.length) return null;
+  if (fitting.some(w => !seen.has(w.page))) return chooseWork(loads, avoid, false);
+  forgetOldestSeen(new Set(fitting.map(w => w.page)));
+  return chooseWork(ok, avoid, false) || chooseWork(loads, avoid, false);
+}
+function forgetOldestSeen(pages) {
+  const shown = [...seen].filter(p => pages.has(p)), forget = shown.slice(0, Math.ceil(shown.length / 2));
+  forget.forEach(p => seen.delete(p));
+  save('seen', [...seen]);
+  if (SHARED_SEEN) postSeen({ forget }).catch(() => {});
 }
 
 function loadImage(url) {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    const timer = setTimeout(() => { img.src = ''; reject(new Error('timeout')); }, LOAD_TIMEOUT_MS);
+    // A picture that runs out of time while the show is hidden (an iPad asleep) isn't its server's fault.
+    let hidden = document.hidden;
+    const onHide = () => { if (document.hidden) hidden = true; };
+    document.addEventListener('visibilitychange', onHide);
+    const done = () => { clearTimeout(timer); document.removeEventListener('visibilitychange', onHide); };
+    const timer = setTimeout(() => { done(); img.src = ''; reject(new Error(hidden ? 'hidden' : 'timeout')); }, LOAD_TIMEOUT_MS);
     img.onload = () => {
-      clearTimeout(timer);
+      done();
       if (img.naturalWidth < 50 || img.naturalHeight < 50) { reject(new Error('too small')); return; }
       // Decoding ahead makes the fade smooth, but browsers hold it back while the page is hidden
       // (window covered, iPad asleep), so don't wait on it for more than a moment.
       Promise.race([img.decode().catch(() => {}), new Promise(r => setTimeout(r, 2000))]).then(() => resolve(img));
     };
-    img.onerror = () => { clearTimeout(timer); reject(new Error('failed')); };
+    img.onerror = () => { done(); reject(new Error('failed')); };
     img.src = url;
   });
 }
@@ -353,7 +413,7 @@ function tryWork(work) {
     // The art list's size can be missing or off; the loaded picture has the real shape.
     work.shape = shapeOf(img.naturalWidth, img.naturalHeight);
     return fits(work.shape) ? { work, img } : null;
-  }, err => { noteFailure(work.image, err.message === 'timeout'); return null; });
+  }, err => { if (err.message !== 'hidden') noteFailure(work.image, err.message === 'timeout'); return null; });
 }
 
 // The first of several pieces whose picture arrives, or null if none does.
@@ -398,7 +458,7 @@ function keepForNextOpening(next) {
 function readyFromLastOpening() {
   const w = load('ready', null);
   if (!w || !w.image || !w.page || seen.has(w.page) || hiddenPages.has(w.page) || failed.has(w.image)) return null;
-  if (!showDigital && w.source === 'DeviantArt') return null;
+  if (!showDigital && isDigital(w)) return null;
   return usableImage(w) ? w : null;
 }
 
@@ -696,7 +756,8 @@ $('hideThis').addEventListener('click', e => { e.stopPropagation(); if (shownWor
 (async function start() {
   catalogCheckedAt = Date.now();
   try {
-    useCatalog(await fetchCatalog());
+    const [catalog] = await Promise.all([fetchCatalog(), loadSharedSeen()]);
+    useCatalog(catalog);
   } catch {
     $('welcomeNote').textContent = "Can't get the art list. Is the internet connected? Trying again…";
     setTimeout(start, 15000);

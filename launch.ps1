@@ -7,10 +7,12 @@
 #   - The screens stay on for up to 4 hours while it's open; after that they can go dark as usual.
 #   - Run it with -Preview to start only the web server (no windows), then open
 #     http://localhost:47233/index.html?desktop and http://localhost:47233/about.html in any browser.
+#   - -Test (for pictures and checks): the show neither reads nor adds to the list of pieces already shown.
 
 param(
     [switch]$Preview,
-    [int]$Port = 47233
+    [int]$Port = 47233,
+    [switch]$Test
 )
 
 # The web server answers requests one by one, with a pause between each, in PowerShell's default
@@ -19,6 +21,7 @@ param(
 if ([Threading.Thread]::CurrentThread.GetApartmentState() -ne 'MTA') {
     $again = @('-MTA', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', "`"$PSCommandPath`"", '-Port', $Port)
     if ($Preview) { $again += '-Preview' }
+    if ($Test) { $again += '-Test' }
     Start-Process powershell.exe -ArgumentList $again -WindowStyle Hidden
     return
 }
@@ -95,6 +98,56 @@ function Get-HiddenJson {
     '[' + (($pages | ForEach-Object { ConvertTo-Json ([string]$_) }) -join ',') + ']'
 }
 $state['hidden'] = Get-HiddenJson
+# Pieces already shown (2.12), one address per line in seen.txt, oldest first, shared by every copy of the show on
+# this PC (its own window, the Morning and Night Screens, the App Tester), so none of them shows again what another
+# already did. A piece shown again is added again; reading keeps its last place.
+$seenFile = Join-Path $data 'seen.txt'
+# (Read with .NET and plain loops: the server answers one request at a time, and this list can be long.)
+# -Strict: a file another copy is writing this moment makes it fail (so Set-Seen tries again), not come back empty.
+function Get-SeenLines([switch]$Strict) {
+    $lines = if ($Strict) { if (Test-Path -LiteralPath $seenFile) { @([IO.File]::ReadAllLines($seenFile)) } else { @() } }
+             else { @(try { [IO.File]::ReadAllLines($seenFile) } catch { }) }
+    $have = New-Object 'System.Collections.Generic.HashSet[string]'
+    $out = New-Object System.Collections.ArrayList
+    for ($i = $lines.Count - 1; $i -ge 0; $i--) {
+        if ($lines[$i].StartsWith('http') -and $have.Add($lines[$i])) { [void]$out.Add($lines[$i]) }
+    }
+    $out.Reverse()
+    , $out
+}
+function Get-SeenJson {
+    if ($Test) { return '[]' }
+    $lines = Get-SeenLines
+    $parts = foreach ($l in $lines) { '"' + $l.Replace('\', '\\').Replace('"', '\"') + '"' }
+    '[' + ($parts -join ',') + ']'
+}
+function Set-Seen($body) {
+    if ($Test) { return }
+    $b = $body | ConvertFrom-Json
+    # {page}: one piece just shown. {pages}: several (a copy's own memory, the first time). {forget}: pieces that may
+    # come round again (every piece had been shown).
+    $add = @(@($b.page) + @($b.pages) | Where-Object { $_ -match '^https?://' })
+    $forget = @($b.forget | Where-Object { $_ })
+    for ($try = 0; $try -lt 5; $try++) {     # another copy of the show may be writing it this moment
+        try {
+            if ($add.Count) {
+                [IO.File]::AppendAllText($seenFile, (($add | ForEach-Object { [string]$_ }) -join "`r`n") + "`r`n")
+                if ((Get-Item -LiteralPath $seenFile).Length -gt 3MB) {    # about 40,000 pieces: keep the newest 25,000
+                    $lines = Get-SeenLines -Strict
+                    if ($lines.Count) { [IO.File]::WriteAllLines($seenFile, [string[]]@($lines | Select-Object -Last 25000)) }
+                }
+            }
+            if ($forget.Count) {
+                $drop = New-Object 'System.Collections.Generic.HashSet[string]'
+                foreach ($p in $forget) { [void]$drop.Add([string]$p) }
+                $lines = Get-SeenLines -Strict
+                $keep = foreach ($l in $lines) { if (-not $drop.Contains($l)) { $l } }
+                [IO.File]::WriteAllLines($seenFile, [string[]]@($keep))
+            }
+            return
+        } catch { Start-Sleep -Milliseconds 150 }
+    }
+}
 
 $types = @{
     '.html' = 'text/html; charset=utf-8'; '.js' = 'text/javascript; charset=utf-8'; '.css' = 'text/css; charset=utf-8'
@@ -138,12 +191,16 @@ $daToken = $null
 $daTokenUntil = Get-Date
 $daAnswers = @{}
 
+# At most 8 seconds a request (2.12): the server answers one request at a time, so a slow DeviantArt held up both
+# screens, and since 2.12 most pieces with Digital art off are DeviantArt's.
 function Get-Web($url, $headers = @{}) {
-    $wc = New-Object Net.WebClient
-    $wc.Encoding = [Text.Encoding]::UTF8
-    $wc.Headers['User-Agent'] = $userAgent
-    foreach ($k in $headers.Keys) { $wc.Headers[$k] = $headers[$k] }
-    try { $wc.DownloadString($url) } finally { $wc.Dispose() }
+    $req = [Net.HttpWebRequest]::Create($url)
+    $req.UserAgent = $userAgent
+    $req.Timeout = 8000
+    $req.ReadWriteTimeout = 8000
+    foreach ($k in $headers.Keys) { $req.Headers[$k] = $headers[$k] }
+    $resp = $req.GetResponse()
+    try { (New-Object IO.StreamReader($resp.GetResponseStream(), [Text.Encoding]::UTF8)).ReadToEnd() } finally { $resp.Close() }
 }
 
 function Get-DeviantArtToken {
@@ -163,8 +220,10 @@ function Get-DeviantArtToken {
     $script:daToken
 }
 
+$daDownUntil = Get-Date   # after DeviantArt doesn't answer in time, it isn't asked again for 5 minutes
 function Get-DeviantArt($page) {
     if ($daAnswers.ContainsKey($page)) { return $daAnswers[$page] }
+    if ((Get-Date) -lt $script:daDownUntil) { return '{"error":"DeviantArt is slow to answer just now"}' }
     try {
         if ($page -notmatch '^https://www\.deviantart\.com/') { throw 'not a DeviantArt page' }
         $html = Get-Web $page
@@ -190,6 +249,7 @@ function Get-DeviantArt($page) {
         $daAnswers[$page] = $json
         $json
     } catch {
+        if ("$($_.Exception.Message)" -match 'timed out|time-out|timeout') { $script:daDownUntil = (Get-Date).AddMinutes(5) }
         '{"error":' + (ConvertTo-Json ([string]$_.Exception.Message)) + '}'
     }
 }
@@ -226,6 +286,12 @@ function Invoke-Request($ctx) {
             if ($since -ne $script:version) { Send-Text $ctx (Get-StateJson) }
             else { [void]$waiting.Add(@{ Ctx = $ctx; Until = (Get-Date).AddSeconds(20) }) }
         }
+        return
+    }
+
+    if ($path -eq '/api/seen') {
+        if ($req.HttpMethod -eq 'POST') { Set-Seen (Read-Body $req); Send-Text $ctx '{}' }
+        else { Send-Text $ctx (Get-SeenJson) }
         return
     }
 
