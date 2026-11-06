@@ -9,8 +9,11 @@ Sources:
   - Art Institute of Chicago      https://api.artic.edu/docs/
   - Minneapolis Institute of Art  https://search.artsmia.org/
   - SMK, National Gallery of Denmark  https://open.smk.dk/en/api
-  - Wikidata (https://query.wikidata.org/) only to check that artists are still alive. Its own artworks aren't used:
-    too many of their pictures are snapshots of a wall, a street or a gallery room.
+  - Victoria and Albert Museum    https://developers.vam.ac.uk/  (2.14)
+  - Rijksmuseum                   https://data.rijksmuseum.nl/  (2.14)
+  - Wikidata (https://query.wikidata.org/) only to check that artists are still alive, and for the V&A's and the
+    Rijksmuseum's artists, their country. Its own artworks aren't used: too many of their pictures are snapshots of
+    a wall, a street or a gallery room.
   - DeviantArt (staff-picked Daily Deviations), collected on the PC by tools/fetch_deviantart.py and merged
     from deviantart.json
 """
@@ -32,7 +35,7 @@ from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from countries import countries_from_nationality
+from countries import countries_from_nationality, country_from_label
 
 HERE = Path(__file__).resolve().parent
 OUT = HERE.parent / 'catalog.json'
@@ -41,10 +44,11 @@ CACHE = Path(os.environ.get('WORLD_ART_SHOW_CACHE')
 UA = 'WorldArtShow/1.0 (personal art slideshow; https://github.com/dylaneinsidler)'
 
 THIS_YEAR = time.localtime().tm_year
-MADE_SINCE = 2010        # only art made in this year or later
+MADE_SINCE = 2000        # only art made in this year or later (2010 until 2.14; Dylan, 2026-11-05: five times the art)
 BORN_AFTER = 1925        # older than ~100: treat as not living even if no death date is recorded
 MAX_PER_ARTIST = 20      # keeps a few very prolific artists from filling the catalog
-MIN_SIDE = 800           # skip images too small to look good on a large screen
+MIN_SIDE = 760           # skip images too small to look good on a large screen (800 until 2.14: the V&A serves
+                         # recent work at 768 pixels; the other museums at 800 to 843)
 
 # Photographs, film and video, recognised by what the work is made of ("gelatin silver print",
 # "inkjet print", "single-channel video"). Inkjet and pigment prints in museums are nearly always photographs.
@@ -189,6 +193,221 @@ def download_smk():
     return rows
 
 
+def download_vam():
+    """The V&A's prints, drawings and paintings made since MADE_SINCE that have a picture (its search records): by
+    category, and by object type, since many (most of its drawings) are filed under another category."""
+    rows, seen = [], set()
+    searches = [f'id_category={c}' for c in ('THES48903', 'THES48889', 'THES48885')] + \
+               [f'q_object_type={t}' for t in ('print', 'drawing', 'painting', 'woodcut', 'etching', 'screenprint',
+                                               'lithograph', 'linocut', 'watercolour', 'collage')]
+    for search in searches:
+        page = 1
+        while True:
+            d = fetch_json(f'https://api.vam.ac.uk/v2/objects/search?year_made_from={MADE_SINCE}&images_exist=1'
+                           f'&{search}&page_size=100&page={page}')
+            for r in d['records']:
+                if r['systemNumber'] not in seen:
+                    seen.add(r['systemNumber'])
+                    rows.append(r)
+            if page >= d['info']['pages']:
+                break
+            page += 1
+            time.sleep(0.3)
+    print(f'  V&A: {len(rows)}')
+    return rows
+
+
+LINKED_ART = {'Accept': 'application/ld+json'}
+
+
+def download_rijks():
+    """The Rijksmuseum's prints, drawings and paintings made since MADE_SINCE that have a picture: just where each
+    record is, with the year searched for. The records themselves are looked up once and kept (rijks_records)."""
+    found = {}
+    for kind in ('print', 'drawing', 'painting'):
+        for year in range(MADE_SINCE, THIS_YEAR + 1):
+            url = f'https://data.rijksmuseum.nl/search/collection?type={kind}&creationDate={year}&imageAvailable=true'
+            while url:
+                d = fetch_json(url)
+                for it in d.get('orderedItems') or []:
+                    found.setdefault(it['id'], [it['id'], year, kind])
+                url = (d.get('next') or {}).get('id')
+                time.sleep(0.2)
+    print(f'  Rijksmuseum: {len(found)}')
+    return list(found.values())
+
+
+def english(notations):
+    """The English one of a Rijksmuseum record's labels ([{"@language": "en", "@value": "print"}, ...])."""
+    for n in notations or []:
+        if n.get('@language') == 'en':
+            return n.get('@value') or ''
+    return (notations or [{}])[0].get('@value') or ''
+
+
+def rijks_compact(o):
+    """The parts of a Rijksmuseum (Linked Art) record the show uses."""
+    is_english = lambda x: any((l.get('id') or '').endswith('300388277') for l in x.get('language') or [])
+    names = [x for x in o.get('identified_by') or [] if x.get('type') == 'Name' and x.get('content')]
+    title = next((x['content'] for x in names if is_english(x)), names[0]['content'] if names else '')
+    number = next((x['content'] for x in o.get('identified_by') or [] if x.get('type') == 'Identifier'), '')
+    prod = o.get('produced_by') or {}
+    parts = prod.get('part') or [prod]
+    makers = []
+    for part in parts:
+        role = ', '.join(english(t.get('notation')) for t in part.get('technique') or [])
+        if not role:   # then it's in the words: "printmaker: Karel Wetselaar (signed by artist)"
+            role = next((t['content'].split(':')[0] for t in part.get('referred_to_by') or []
+                         if is_english(t) and ':' in (t.get('content') or '')), '')
+        # The maker is named right there, or (about half the time) only pointed to, as an attribution.
+        people = list(part.get('carried_out_by') or [])
+        people += [p for a in part.get('assigned_by') or [] if a.get('assigned_property') == 'carried_out_by'
+                   for p in a.get('assigned') or [] if p.get('type') == 'Person']
+        for p in people:
+            wikidata = next((e['id'].rsplit('/', 1)[1] for e in p.get('equivalent') or [] if 'wikidata.org' in e.get('id', '')), '')
+            makers.append({'id': p.get('id'), 'name': english(p.get('notation')), 'wikidata': wikidata, 'role': role})
+    span = prod.get('timespan') or next((p['timespan'] for p in parts if p.get('timespan')), {})
+    years = sorted({int(t[:4]) for t in (span.get('begin_of_the_begin'), span.get('end_of_the_end')) if t and t[:4].isdigit()})
+    return {'title': title, 'number': number, 'makers': makers,
+            'date': '–'.join(str(y) for y in years),
+            'kind': ', '.join(english(c.get('notation')) for c in o.get('classified_as') or [] if english(c.get('notation'))),
+            'materials': ', '.join(english(m.get('notation')) for m in o.get('made_of') or []),
+            'visual': ((o.get('shows') or [{}])[0]).get('id')}
+
+
+def rijks_person(pid):
+    """A maker the record only points to: their own Rijksmuseum record's name, Wikidata id, birth and death years."""
+    p = fetch_json(pid, headers=LINKED_ART, tries=2)
+    names = [x['content'] for x in p.get('identified_by') or [] if x.get('type') == 'Name' and x.get('content')]
+    year = lambda event: (((event or {}).get('timespan') or {}).get('begin_of_the_begin') or '')[:4]
+    return {'name': names[0] if names else '', 'born': year(p.get('born')), 'died': year(p.get('died')),
+            'wikidata': next((e['id'].rsplit('/', 1)[1] for e in p.get('equivalent') or []
+                              if 'wikidata.org' in e.get('id', '')), '')}
+
+
+def rijks_records(found, fresh):
+    """Each Rijksmuseum piece's record, its picture's address and size: three or four lookups a piece, so they're
+    done once and kept (records hardly change). v 2: makers given only as an attribution are looked up too."""
+    known = load_cache('rijks-records', fresh)
+    persons = load_cache('rijks-people', fresh)
+    todo = [oid for oid, _, _ in found if (known.get(oid) or {}).get('v') != 2]
+
+    def look(oid):
+        try:
+            rec = rijks_compact(fetch_json(oid, headers=LINKED_ART, tries=2))
+            rec['v'] = 2
+            for m in rec['makers']:
+                if m['id'] and not (m['name'] and m['wikidata']):
+                    if m['id'] not in persons:
+                        persons[m['id']] = rijks_person(m['id'])
+                    p = persons[m['id']]
+                    m.update(name=m['name'] or p['name'], wikidata=m['wikidata'] or p['wikidata'], born=p['born'], died=p['died'])
+            if rec['visual']:
+                visual = fetch_json(rec['visual'], headers=LINKED_ART, tries=2)
+                digital = fetch_json(visual['digitally_shown_by'][0]['id'], headers=LINKED_ART, tries=2)
+                base = digital['access_point'][0]['id'].split('/full/')[0]   # https://iiif.micr.io/<id>
+                info = fetch_json(base + '/info.json', tries=2)
+                rec.update(iiif=base, w=info.get('width') or 0, h=info.get('height') or 0)
+            return oid, rec
+        except Exception:
+            return oid, None   # try again next time
+
+    if todo:
+        print(f'Looking up {len(todo)} Rijksmuseum records...', flush=True)
+        with ThreadPoolExecutor(6) as pool:
+            for n, (oid, rec) in enumerate(pool.map(look, todo), 1):
+                if rec is not None:
+                    known[oid] = rec
+                if n % 200 == 0:
+                    print(f'  {n} of {len(todo)}', flush=True)
+                    save_cache('rijks-records', known)
+        save_cache('rijks-records', known)
+        save_cache('rijks-people', persons)
+    return known
+
+
+def iiif_sizes(bases, fresh):
+    """Each picture's size, from its IIIF info.json (also shows the picture is there). Kept between runs."""
+    known = load_cache('iiif-sizes', fresh)
+    todo = sorted(set(bases) - known.keys())
+
+    def look(base):
+        try:
+            info = fetch_json(base.rstrip('/') + '/info.json', tries=2)
+            return base, [info.get('width') or 0, info.get('height') or 0]
+        except urllib.error.HTTPError as e:
+            return base, [0, -1] if e.code in (403, 404, 410) else None   # -1: no picture there
+        except Exception:
+            return base, None
+
+    if todo:
+        print(f'Checking {len(todo)} picture sizes...', flush=True)
+        with ThreadPoolExecutor(6) as pool:
+            for base, size in pool.map(look, todo):
+                if size is not None:
+                    known[base] = size
+        save_cache('iiif-sizes', known)
+    return known
+
+
+# Life and country of the V&A's and the Rijksmuseum's artists, from Wikidata. The Rijksmuseum links most of its
+# makers to their Wikidata entry; the V&A gives only a name, so a name counts only when it belongs to exactly one
+# artist on Wikidata (a painter, printmaker, illustrator...): a namesake mustn't decide who's alive.
+PEOPLE_QUERY = '''
+SELECT ?p ?born ?died ?country WHERE {
+  VALUES ?p { %s }
+  OPTIONAL { ?p wdt:P569 ?b . BIND(YEAR(?b) AS ?born) }
+  OPTIONAL { ?p wdt:P570 ?d . BIND(YEAR(?d) AS ?died) }
+  OPTIONAL { ?p wdt:P27 ?c . ?c rdfs:label ?country . FILTER(LANG(?country) = "en") }
+}'''
+NAMES_QUERY = '''
+SELECT ?name ?p ?born ?died ?country WHERE {
+  VALUES ?name { %s }
+  VALUES ?job { wd:Q483501 wd:Q1028181 wd:Q11569986 wd:Q3391743 wd:Q644687 wd:Q15296811 wd:Q329439 wd:Q627325
+                wd:Q1281618 wd:Q3303330 wd:Q1925963 wd:Q7541856 }
+  ?p rdfs:label ?name ; wdt:P31 wd:Q5 ; wdt:P106 ?job .
+  OPTIONAL { ?p wdt:P569 ?b . BIND(YEAR(?b) AS ?born) }
+  OPTIONAL { ?p wdt:P570 ?d . BIND(YEAR(?d) AS ?died) }
+  OPTIONAL { ?p wdt:P27 ?c . ?c rdfs:label ?country . FILTER(LANG(?country) = "en") }
+}'''
+
+
+def wikidata_people(keys, by_name, fresh):
+    """{Wikidata id or name: {'born', 'died', 'countries'}}, or {} when Wikidata can't say. Checked again each month."""
+    cache = 'wikidata-names' if by_name else 'wikidata-people'
+    known = load_cache(cache, fresh, max_age_days=30)
+    todo = sorted(set(k for k in keys if k) - known.keys())
+    if todo:
+        print(f'Looking up {len(todo)} artists on Wikidata...', flush=True)
+    for i in range(0, len(todo), 80):
+        batch = todo[i:i + 80]
+        if by_name:
+            values = ' '.join(f'"{n}"@{lang}' for n in (x.replace('\\', '\\\\').replace('"', '\\"') for x in batch)
+                              for lang in ('en', 'mul'))
+        else:
+            values = ' '.join(f'wd:{q}' for q in batch if re.fullmatch(r'Q\d+', q))
+        url = 'https://query.wikidata.org/sparql?' + urllib.parse.urlencode(
+            {'query': (NAMES_QUERY if by_name else PEOPLE_QUERY) % values, 'format': 'json'})
+        rows = fetch_json(url, headers={'Accept': 'application/sparql-results+json'})['results']['bindings']
+        found = defaultdict(lambda: defaultdict(lambda: {'born': None, 'died': None, 'countries': []}))
+        for r in rows:
+            key = r['name']['value'] if by_name else r['p']['value'].rsplit('/', 1)[1]
+            person = found[key][r['p']['value']]
+            if 'born' in r:
+                person['born'] = int(r['born']['value'])
+            if 'died' in r:
+                person['died'] = int(r['died']['value'])
+            if 'country' in r and r['country']['value'] not in person['countries']:
+                person['countries'].append(r['country']['value'])
+        for key in batch:
+            matches = list(found[key].values()) if key in found else []
+            known[key] = matches[0] if len(matches) == 1 else {}
+        time.sleep(1)
+    if todo:
+        save_cache(cache, known)
+    return known
+
+
 # ---------------------------------------------------------------- normalizing
 
 def clean(s):
@@ -211,6 +430,7 @@ def living_birth_year(life):
 
 
 def item(source, page, image, title, date, artist, born, countries, width, height, kind=''):
+    title = re.sub(r'<[^>]+>', '', title or '')   # the V&A writes some titles with <i>...</i>
     return {'source': source, 'page': page, 'image': image, 'title': clean(title) or 'Untitled',
             'date': clean(date), 'artist': clean(artist), 'born': born, 'country': ' / '.join(countries[:2]),
             'w': int(width or 0), 'h': int(height or 0), 'kind': kind}
@@ -324,6 +544,97 @@ def from_smk(rows, unknown):
     return out
 
 
+# The V&A names where a piece was made, not the artist's country: used when Wikidata doesn't know the artist.
+VAM_PLACES = {'london': 'United Kingdom', 'britain': 'United Kingdom', 'england': 'England', 'scotland': 'Scotland',
+              'wales': 'Wales', 'edinburgh': 'Scotland', 'glasgow': 'Scotland', 'cardiff': 'Wales',
+              'manchester': 'United Kingdom', 'bristol': 'United Kingdom', 'kyoto': 'Japan', 'tokyo': 'Japan',
+              'osaka': 'Japan', 'montreal': 'Canada', 'toronto': 'Canada', 'new york': 'United States',
+              'paris': 'France', 'berlin': 'Germany', 'seoul': 'South Korea', 'beijing': 'China',
+              'shanghai': 'China', 'hong kong': 'Hong Kong', 'mumbai': 'India', 'delhi': 'India', 'new delhi': 'India',
+              'amsterdam': 'Netherlands', 'dublin': 'Ireland', 'taipei': 'Taiwan', 'america': 'United States',
+              'wimbledon': 'United Kingdom', 'brighton': 'United Kingdom', 'hackney wick': 'United Kingdom',
+              'oxford': 'United Kingdom', 'margate': 'United Kingdom', 'bath': 'United Kingdom', 'devon': 'England',
+              'dundee': 'Scotland', 'arles': 'France', 'liege': 'Belgium', 'mallorca': 'Spain', 'madrid': 'Spain',
+              'california': 'United States', 'connecticut': 'United States', 'philadelphia': 'United States',
+              'new jersey': 'United States', 'moscow': 'Russia', 'rio de janeiro': 'Brazil', 'lisbon': 'Portugal',
+              'munich': 'Germany', 'buenos aires': 'Argentina', 'jaipur': 'India', 'gujarat': 'India',
+              'diriyah': 'Saudi Arabia', 'torres strait islands': 'Australia'}
+# Makers that are a business, not an artist ("Somenotsukasa Yoshioka dye workshop", "Curwen Press").
+NOT_A_PERSON = re.compile(r'\b(unknown|anonymous|workshop|studio|press|ltd|limited|company|co\.|editions?|gallery|'
+                          r'publishers?|printers?|school|group|collective|society|museum|council)\b', re.I)
+VAM_NOT_ART = re.compile(r'poster|postcard|album|sample|card|label|wrapper|calendar|book|design', re.I)
+
+
+def vam_artist(r):
+    """'Ainslie, Prudence' -> 'Prudence Ainslie'; '' for a business or an unnamed maker."""
+    m = r.get('_primaryMaker') or {}
+    name, role = clean(m.get('name')), (m.get('association') or '').lower()
+    if not name or NOT_A_PERSON.search(name) or re.search(r'publish|printer|manufactur|retail|distribut', role):
+        return ''
+    last, comma, first = name.partition(', ')
+    return f'{first} {last}' if comma and first and not re.search(r'\d', first) else name
+
+
+def from_vam(rows, people, sizes, unknown):
+    out = []
+    for r in rows:
+        kind, artist = clean(r.get('objectType')), vam_artist(r)
+        base = (r.get('_images') or {}).get('_iiif_image_base_url')
+        if not base or not artist or not flat_art(kind) or VAM_NOT_ART.search(kind) or not made_since(r.get('_primaryDate')):
+            continue
+        p = people.get(artist) or {}
+        if p.get('died') or (p.get('born') and p['born'] < BORN_AFTER):
+            continue
+        if not p and ' ' not in artist:   # a surname alone ("Freud"): no telling who, or whether they're alive
+            continue
+        countries = [c for c in (country_from_label(x) for x in p.get('countries') or []) if c]
+        if not countries:
+            place = clean(r.get('_primaryPlace'))
+            country = country_from_label(place) or VAM_PLACES.get(place.casefold())
+            if not country:
+                unknown[('V&A place', place)] += 1
+                continue
+            countries = [country]
+        w, h = sizes.get(base, (0, 0))
+        if h < 0:   # the picture isn't there
+            continue
+        out.append(item('Victoria and Albert Museum', f'https://collections.vam.ac.uk/item/{r["systemNumber"]}/',
+                        f'{base}full/!1600,1600/0/default.jpg', r.get('_primaryTitle'), r.get('_primaryDate'),
+                        artist, p.get('born') or 0, countries, w, h, kind))
+    return out
+
+
+# Rijksmuseum roles that aren't the artist (the print's publisher, the printer, the person it was made after).
+RIJKS_NOT_ARTIST = re.compile(r'publisher|printer\b|editor|commission|dedicat|after|intermediar|attributed|workshop|'
+                              r'client|author', re.I)
+
+
+def from_rijks(found, records, people, unknown):
+    out = []
+    for oid, year, kind in found:
+        rec = records.get(oid) or {}
+        makers = [m for m in rec.get('makers') or [] if m.get('name') and not RIJKS_NOT_ARTIST.search(m.get('role') or '')]
+        if not rec.get('iiif') or not makers or NOT_A_PERSON.search(makers[0]['name']) \
+                or PHOTO_MEDIUM.search(f"{rec.get('kind')} {rec.get('materials')} {makers[0].get('role')}"):
+            continue
+        m, date = makers[0], rec.get('date') or str(year)
+        p = people.get(m.get('wikidata')) or {}
+        born = p.get('born') or (int(m['born']) if (m.get('born') or '').isdigit() else 0)
+        if p.get('died') or m.get('died') or not born or born < BORN_AFTER or not made_since(date):
+            continue
+        if not p:
+            unknown[('Rijksmuseum', 'artist not on Wikidata')] += 1
+            continue
+        countries = [c for c in (country_from_label(x) for x in p.get('countries') or []) if c]
+        if not countries:
+            unknown[('Rijksmuseum', ', '.join(p.get('countries') or []) or 'no country')] += 1
+            continue
+        out.append(item('Rijksmuseum', f'https://www.rijksmuseum.nl/en/collection/{rec["number"]}',
+                        f'{rec["iiif"]}/full/!1600,1600/0/default.jpg', rec.get('title'), date, m['name'],
+                        born, countries, rec.get('w'), rec.get('h'), rec.get('kind') or kind))
+    return out
+
+
 # ---------------------------------------------------------------- checks
 
 def mia_images_that_load(items, fresh):
@@ -413,7 +724,17 @@ def main():
     museums = (from_aic(cached('aic', age, download_aic), unknown)
                + mia_images_that_load(from_mia(cached('mia', age, download_mia), unknown), args.fresh)
                + from_smk(cached('smk', age, download_smk), unknown))
-    dead = dead_on_wikidata(museums, args.fresh)
+    # The V&A and the Rijksmuseum (2.14): their artists' lives and countries come from Wikidata.
+    vam = cached('vam', age, download_vam)
+    vam_people = wikidata_people({vam_artist(r) for r in vam}, True, args.fresh)
+    vam_sizes = iiif_sizes([(r.get('_images') or {}).get('_iiif_image_base_url') for r in vam
+                            if (r.get('_images') or {}).get('_iiif_image_base_url')], args.fresh)
+    museums += from_vam(vam, vam_people, vam_sizes, unknown)
+    rijks = cached('rijks', age, download_rijks)
+    records = rijks_records(rijks, args.fresh)
+    rijks_people = wikidata_people({m.get('wikidata') for r in records.values() for m in r.get('makers') or []}, False, args.fresh)
+    museums += from_rijks(rijks, records, rijks_people, unknown)
+    dead = dead_on_wikidata([it for it in museums if it['born']], args.fresh)
     if dead:
         print(f'Leaving out {len(dead)} artists Wikidata records as having died, e.g. '
               + ', '.join(sorted(a for a, _ in dead)[:8]))

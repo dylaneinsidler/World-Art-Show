@@ -18,6 +18,8 @@
     'Art Institute of Chicago': { the: 'the Art Institute of Chicago', city: 'Chicago, Illinois, USA', short: 'Chicago', at: [-87.6237, 41.8796] },
     'Minneapolis Institute of Art': { the: 'the Minneapolis Institute of Art', city: 'Minneapolis, Minnesota, USA', short: 'Minneapolis', at: [-93.2737, 44.9586] },
     'SMK – National Gallery of Denmark': { the: 'SMK, the National Gallery of Denmark', city: 'Copenhagen, Denmark', short: 'Copenhagen', at: [12.5779, 55.6888] },
+    'Victoria and Albert Museum': { the: 'the V&A', city: 'London, United Kingdom', short: 'London', at: [-0.1722, 51.4966] },
+    'Rijksmuseum': { the: 'the Rijksmuseum', city: 'Amsterdam, Netherlands', short: 'Amsterdam', at: [4.8852, 52.36] },
   };
 
   // ---------------------------------------------------------------- little helpers
@@ -29,11 +31,11 @@
     return e;
   }
 
-  async function getJSON(url, ms = 20000) {
+  async function getJSON(url, ms = 20000, headers = {}) {
     const stop = new AbortController();
     const timer = setTimeout(() => stop.abort(), ms);
     try {
-      const r = await fetch(url, { signal: stop.signal });
+      const r = await fetch(url, { signal: stop.signal, headers });
       if (!r.ok) throw new Error(url + ' ' + r.status);
       return await r.json();
     } finally { clearTimeout(timer); }
@@ -122,7 +124,50 @@
         born,
       };
     }
+    if (work.source === 'Victoria and Albert Museum') {
+      const d = (await getJSON(`https://api.vam.ac.uk/v2/object/${id}`)).record;
+      return {
+        story: d.summaryDescription ? paragraphs(d.summaryDescription, true) : paragraphs(d.briefDescription, true),
+        life: '',
+        facts: [d.materialsAndTechniques, vamSize(d.dimensions)],
+        onView: false,
+        now: "In the V&A's collection",
+        more: [d.creditLine, d.accessionNumber && `Object number ${d.accessionNumber}`],
+        born: bornYear(d.summaryDescription),
+      };
+    }
+    if (work.source === 'Rijksmuseum') {
+      const d = await rijksRecord(id);
+      return {
+        story: d.story, life: '', facts: d.facts, onView: false, now: "In the Rijksmuseum's collection",
+        more: [d.credit, `Object number ${id}`], born: null,
+      };
+    }
     return null;
+  }
+
+  // The V&A gives each measurement with its unit: the height and width.
+  function vamSize(dims) {
+    const pick = name => (dims || []).find(x => (x.dimension || '').toLowerCase() === name && x.value);
+    const h = pick('height'), w = pick('width');
+    return h && w ? `${h.value} × ${w.value} ${h.unit || 'cm'}` : '';
+  }
+
+  // The Rijksmuseum's record (Linked Art), found by its object number: its English texts, what it is, its size.
+  async function rijksRecord(number) {
+    const found = await getJSON(`https://data.rijksmuseum.nl/search/collection?objectNumber=${encodeURIComponent(number)}`);
+    const id = ((found.orderedItems || [])[0] || {}).id;
+    if (!id) throw new Error('not in the Rijksmuseum search: ' + number);
+    const o = await getJSON(id, 20000, { Accept: 'application/ld+json' });
+    const english = ns => ((ns || []).find(n => n['@language'] === 'en') || (ns || [])[0] || {})['@value'] || '';
+    const texts = code => (o.referred_to_by || []).filter(t => (t.language || []).some(l => (l.id || '').endsWith('300388277'))
+      && (t.classified_as || []).some(c => (c.id || '').endsWith(code))).map(t => t.content);
+    return {
+      story: [...texts('300435452'), ...texts('300080091')].flatMap(t => paragraphs(t)),   // a description, when there is one
+      facts: [[...(o.classified_as || []), ...(o.made_of || [])].map(c => english(c.notation)).filter(Boolean).join(', '),
+              texts('300435430')[0]],                                                     // "height 231 mm x width 160 mm"
+      credit: texts('300026687')[0],
+    };
   }
 
   // SMK gives sizes in millimetres (the type in Danish or English): the first height and width, in cm.

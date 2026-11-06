@@ -2,10 +2,10 @@
 
 New art by living artists from around the world, a new piece every 60 seconds. On your computer it fills two screens: the art on the left, and its story on the right. On an iPad it's a home-screen app that works in portrait and landscape.
 
-![Both screens on the computer](screenshots/v2.13-01-dark.jpg)
+![Both screens on the computer](screenshots/v2.14-01-dark.jpg)
 
 - **Art made by hand or on a computer:** paintings, drawings, watercolors, prints, collages and digital art. No photography, no photos of objects, no AI-made images, no fan art or video game art.
-- **New work:** made in 2010 or later, by artists alive today.
+- **New work:** made in 2000 or later (2010 until version 2.14), by artists alive today.
 - **Travels the world:** each piece is picked by country first. The same artist doesn't come back until hundreds of others have had a turn, and pieces don't repeat until every piece has been shown. On the computer, the show's own window and the Morning and Night Screens share one memory of what's been shown (`seen.txt` in `AppData\Local\WorldArtShow`).
 - **New art every day:** DeviantArt's newest staff picks and their artists' new work arrive daily, shown when Digital art is on. With it off (the usual) you see only the museums' pieces, nothing from DeviantArt.
 - **Same frame every time:** each piece is shown whole, never cropped, and the space around it is filled with a soft, blurred copy of the piece.
@@ -45,9 +45,11 @@ On both: tap or click the link under a piece to open its page at the museum or o
 - [Art Institute of Chicago](https://www.artic.edu/open-access/public-api) (USA)
 - [Minneapolis Institute of Art](https://collections.artsmia.org/) (USA)
 - [SMK – National Gallery of Denmark](https://open.smk.dk/en) (Denmark)
+- [Victoria and Albert Museum](https://collections.vam.ac.uk/) (United Kingdom, since 2.14): its prints, drawings and paintings
+- [Rijksmuseum](https://www.rijksmuseum.nl/en/collection) (Netherlands, since 2.14): its prints and drawings
 - [DeviantArt](https://www.deviantart.com/daily-deviations): the pieces its staff pick each day (Daily Deviations), plus the last 12 months of new work by those artists (each one's gallery is checked every few days), once a key is set up (below). Judged by each piece's tags: only pieces tagged as painted, drawn or made digitally, and not photographs, AI-made images, fan art, video game or pixel art, crafts, or character-sale posts.
 
-Museum artists need a recorded birth year, no recorded death, and a birth year of 1925 or later. Museums can take years to record a death, so each one is also checked against [Wikidata](https://www.wikidata.org/) (matching name and birth year). Pieces whose only picture isn't the artwork itself (a photo of the gallery room) can be listed in `tools/leave_out.txt`.
+Museum artists need a recorded birth year, no recorded death, and a birth year of 1925 or later. Museums can take years to record a death, so each one is also checked against [Wikidata](https://www.wikidata.org/) (matching name and birth year). The V&A and the Rijksmuseum don't record artists' lives in their search results, so their artists are looked up on Wikidata (the Rijksmuseum links most of them; the V&A's by name, only when the name belongs to exactly one artist there); a V&A artist Wikidata doesn't know takes the country where the piece was made. Pieces whose only picture isn't the artwork itself (a photo of the gallery room) can be listed in `tools/leave_out.txt`.
 
 ## Setting up DeviantArt
 

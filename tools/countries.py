@@ -116,6 +116,7 @@ WIKIDATA_NAMES = {
     "Lao People's Democratic Republic": 'Laos', 'Brunei Darussalam': 'Brunei', 'Libyan Arab Jamahiriya': 'Libya',
     'Palestinian Territory, Occupied': 'Palestine', 'Congo, the Democratic Republic of the': 'Democratic Republic of the Congo',
     'Macedonia': 'North Macedonia', 'Antarctica': '', 'French Polynesia': 'French Polynesia', 'USA': 'United States', 'UK': 'United Kingdom', 'Great Britain': 'United Kingdom', 'Holland': 'Netherlands',
+    'European Netherlands': 'Netherlands',   # how Wikidata names some Dutch artists' country (the Rijksmuseum's, 2.14)
 }
 
 

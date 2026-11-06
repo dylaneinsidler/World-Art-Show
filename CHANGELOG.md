@@ -3,6 +3,19 @@
 What changed in each version of World Art Show, newest first. Every version has pictures in `screenshots\v<version>-<scene>`:
 after a change, bump `VERSION`, add it here, take a picture of both screens while it's open, and commit.
 
+## 2.14 (November 6, 2026)
+
+Dylan: "I haven't been really seeing new art... I want like five times the pool of art."
+
+- **About five times as much museum art: about 3,100 pieces instead of about 630.** With Digital art off (the usual), the
+  show now has paintings, drawings and prints by about 1,200 living artists from 56 countries.
+  - **Two more museums:** London's Victoria and Albert Museum (about 1,700 prints and drawings) and Amsterdam's
+    Rijksmuseum (about 240). The right screen and the iPad's details tell their stories, sizes and where they came from,
+    as for the other museums.
+  - **Art made in 2000 or later** now counts as new (it was 2010 or later). The artists still have to be alive today.
+- The pictures can be a little smaller (760 pixels across at least, instead of 800): the V&A shares recent work at 768.
+- Checked along the way, and not usable: the Cleveland Museum and the Met don't share pictures of recent work,
+  Europeana's recent "paintings" are mostly postage stamps, and Norway's DigitaltMuseum closed its free service.
 ## 2.13 (November 5, 2026)
 
 Dylan: "it's displaying digital art from DeviantArt even when it's toggled off."

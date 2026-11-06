@@ -46,8 +46,15 @@ Any change Dylan asks for that changes the app makes a new version. After making
 - What it shows (2.13): "Digital art: Off" (the usual) means museum pieces only, nothing from DeviantArt (`isDigital` in
   index.html). 2.12 let in DeviantArt pieces whose `medium` is `hand` (tags, `HAND_TAGS` / `DIGITAL_TAGS` in
   fetch_deviantart.py; the catalog still has the column), but digital pieces got through and Dylan (2026-11-05) wants Off
-  to leave out all of DeviantArt. With only the museums' ~614 pieces, repeats come round within a day or two: more
-  museums is the way to fresh art with Off. `pickWork` takes only unseen pieces; when every fitting piece is seen,
+  to leave out all of DeviantArt. 2.14 (Dylan: "five times the pool"): made 2000 or later (`MADE_SINCE`, was 2010),
+  and two more museums, the V&A (`download_vam` / `from_vam`: its search records; artist's life and country from
+  Wikidata by name, only when exactly one artist has it, else the country from `_primaryPlace`; picture sizes from
+  IIIF info.json, `iiif_sizes`) and the Rijksmuseum (`download_rijks` searches each type and year; `rijks_records`
+  looks each Linked Art record up once into the cache: maker with its Wikidata id, title, date, IIIF picture on
+  iiif.micr.io; `wikidata_people` by id). about.js and details.js read both museums' records for the right screen
+  and the iPad sheet (`vamSize`, `rijksRecord`). Other free sources checked then: Cleveland and the Met give no
+  pictures of recent work, Europeana's are mostly stamps, DigitaltMuseum's API is gone; Harvard and the Smithsonian
+  need a (free) key Dylan would have to sign up for. `pickWork` takes only unseen pieces; when every fitting piece is seen,
   `forgetOldestSeen` lets the older half come round again. On the PC the seen list is shared by every copy through
   launch.ps1's `/api/seen` (`seen.txt`); `-Test` (take-screenshots.ps1 passes it) keeps tests out of it. The Screens'
   server (port 47235) runs the AppData copy of launch.ps1: after changing it, copy it there and restart that server.
