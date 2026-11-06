@@ -2,12 +2,12 @@
 
 New art by living artists from around the world, a new piece every 60 seconds. On your computer it fills two screens: the art on the left, and its story on the right. On an iPad it's a home-screen app that works in portrait and landscape.
 
-![Both screens on the computer](screenshots/v2.12-01-dark.jpg)
+![Both screens on the computer](screenshots/v2.13-01-dark.jpg)
 
 - **Art made by hand or on a computer:** paintings, drawings, watercolors, prints, collages and digital art. No photography, no photos of objects, no AI-made images, no fan art or video game art.
 - **New work:** made in 2010 or later, by artists alive today.
 - **Travels the world:** each piece is picked by country first. The same artist doesn't come back until hundreds of others have had a turn, and pieces don't repeat until every piece has been shown. On the computer, the show's own window and the Morning and Night Screens share one memory of what's been shown (`seen.txt` in `AppData\Local\WorldArtShow`).
-- **New art every day:** DeviantArt's newest staff picks and their artists' new work arrive daily. With Digital art off you see the hand-made ones (painted, drawn, printed, as their tags say); with it on, the digital ones too.
+- **New art every day:** DeviantArt's newest staff picks and their artists' new work arrive daily, shown when Digital art is on. With it off (the usual) you see only the museums' pieces, nothing from DeviantArt.
 - **Same frame every time:** each piece is shown whole, never cropped, and the space around it is filled with a soft, blurred copy of the piece.
 - **Bottom right (iPad):** the artist, their country, the title and year, and the link to the piece at its source.
 - **Always fresh:** GitHub rebuilds the art list every 3 hours, and the show loads the newest list every time it opens.
@@ -25,7 +25,7 @@ Right-click `install.ps1` > **Run with PowerShell**. This puts a **World Art Sho
 |---|---|
 | **◀ ❚❚ ▶** on the right screen, or **← Space →** | previous piece, pause / resume, next piece |
 | **☀ Light / ☾ Dark** on the right screen | switches both screens; it's remembered for next time |
-| **Digital art: Off / On** on the right screen | only art made by hand (Off, the usual): the museums' paintings, drawings and prints, and DeviantArt's hand-made pieces; or digital art too (On); remembered |
+| **Digital art: Off / On** on the right screen | only the museums' paintings, drawings and prints (Off, the usual: nothing from DeviantArt); or DeviantArt's art too (On); remembered |
 | **✕** in the top right corner of either screen, or **Esc** | closes both screens |
 
 The screens stay on for up to 4 hours while it's open. It runs from a copy in `AppData\Local\WorldArtShow\app` that `start.ps1` refreshes from this folder on every start, so edit the files here, not the copy. The two screens talk through a tiny web server that `launch.ps1` runs and only this PC can reach (`http://localhost:47233`); it also looks up DeviantArt pieces for the right screen with your DeviantArt key (below), so it never leaves the PC. `country-facts.js` (capitals, regions, languages) is made by `tools/make_country_facts.py`.

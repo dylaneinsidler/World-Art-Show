@@ -3,6 +3,14 @@
 What changed in each version of World Art Show, newest first. Every version has pictures in `screenshots\v<version>-<scene>`:
 after a change, bump `VERSION`, add it here, take a picture of both screens while it's open, and commit.
 
+## 2.13 (November 5, 2026)
+
+Dylan: "it's displaying digital art from DeviantArt even when it's toggled off."
+
+- **Digital art Off means nothing from DeviantArt again.** Since 2.12, Off still let in DeviantArt pieces whose tags said
+  they were painted or drawn by hand, but those tags can't tell a painting on paper from one made on a tablet, so
+  digital art got through. Now Off shows only the museums' paintings, drawings and prints (about 630 pieces). On still
+  adds DeviantArt's art. With fewer pieces, the ones shown longest ago come round again sooner.
 ## 2.12 (November 3, 2026)
 
 Dylan: "I have not been seeing new art really, and I've been seeing a lot of repeats."

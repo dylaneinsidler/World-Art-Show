@@ -177,12 +177,12 @@ let catalogBuilt = null, catalogCheckedAt = 0;
 let byCountry = new Map(), artistWeight = new Map(), countryWeight = new Map();
 let artistMemory = 0, countryMemory = 0;
 
-// Digital art only when it's turned on: otherwise the show is art made by hand, the museums' paintings, drawings
-// and prints, and DeviantArt's pieces tagged with a traditional medium (2.12: before, Off left out all of DeviantArt,
-// so the show had only the museums' few hundred pieces, which hardly ever change). On the iPad the choice is kept
-// on the iPad (tap to pause, then "Digital art"); on the PC, launch.ps1 keeps it for every copy of the show (the
-// switch is on the right screen).
-const isDigital = w => w.source === 'DeviantArt' && w.medium !== 'hand';
+// Digital art only when it's turned on: otherwise the show is the museums' paintings, drawings and prints, and
+// nothing from DeviantArt. (2.12 let in DeviantArt's pieces tagged with a traditional medium, but their tags can't
+// tell a painting on paper from one on a tablet, and digital ones showed with Off; Dylan, November 5: Off leaves out
+// all of DeviantArt.) On the iPad the choice is kept on the iPad (tap to pause, then "Digital art"); on the PC,
+// launch.ps1 keeps it for every copy of the show (the switch is on the right screen).
+const isDigital = w => w.source === 'DeviantArt';
 let showDigital = DESKTOP ? false : load('digital', false);
 let lastCatalog = null;
 

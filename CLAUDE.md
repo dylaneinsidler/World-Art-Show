@@ -43,9 +43,11 @@ Any change Dylan asks for that changes the app makes a new version. After making
 - The Morning and Night Screens show the AppData copy and pick up edits made here within a minute while they're
   open (7 to 10:30 AM, 8 to 11:30 PM).
 - When starting `powershell.exe` from the PowerShell 7 tool, clear `$env:PSModulePath` first.
-- What it shows (2.12): "Digital art: Off" (the usual) means art made by hand: museum pieces and DeviantArt pieces whose
-  `medium` is `hand` (fetch_deviantart.py: a traditional-medium tag, `HAND_TAGS`, and no digital one, `DIGITAL_TAGS`; the
-  catalog's `medium` column, build_catalog.py). `pickWork` takes only unseen pieces; when every fitting piece is seen,
+- What it shows (2.13): "Digital art: Off" (the usual) means museum pieces only, nothing from DeviantArt (`isDigital` in
+  index.html). 2.12 let in DeviantArt pieces whose `medium` is `hand` (tags, `HAND_TAGS` / `DIGITAL_TAGS` in
+  fetch_deviantart.py; the catalog still has the column), but digital pieces got through and Dylan (2026-11-05) wants Off
+  to leave out all of DeviantArt. With only the museums' ~614 pieces, repeats come round within a day or two: more
+  museums is the way to fresh art with Off. `pickWork` takes only unseen pieces; when every fitting piece is seen,
   `forgetOldestSeen` lets the older half come round again. On the PC the seen list is shared by every copy through
   launch.ps1's `/api/seen` (`seen.txt`); `-Test` (take-screenshots.ps1 passes it) keeps tests out of it. The Screens'
   server (port 47235) runs the AppData copy of launch.ps1: after changing it, copy it there and restart that server.
