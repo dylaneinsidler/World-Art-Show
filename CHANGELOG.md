@@ -3,6 +3,12 @@
 What changed in each version of World Art Show, newest first. Every version has pictures in `screenshots\v<version>-<scene>`:
 after a change, bump `VERSION`, add it here, take a picture of both screens while it's open, and commit.
 
+## 2.17 (November 15, 2026)
+
+- **DeviantArt's picks are collected at 9:00 again.** Since the clocks went back on November 1, Windows had the daily
+  collection set for 8:00, an hour early. It's now set by the PC's own clock, so it stays at 9:00 through every clock
+  change. Nothing on the screens changed.
+
 ## 2.16 (November 15, 2026)
 
 Dylan: "I'm seeing a lot of ethnic art, like African art. I'm not really so interested in that kind of art... we need to

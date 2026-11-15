@@ -39,7 +39,9 @@ Any change Dylan asks for that changes the app makes a new version. After making
 - DeviantArt: the key is in `AppData\Local\WorldArtShow\deviantart-key.txt` (never in this folder or git; never
   show it). `tools\fetch_deviantart.py` runs when the show opens (at most every 6 hours) and from the daily
   "Dylan's World Art Show - DeviantArt picks" task, and uploads `deviantart.json` with git's saved GitHub sign-in; its
-  log is `deviantart.log` there. Commits go to GitHub, so keep keys and AppData files out of them.
+  log is `deviantart.log` there. Commits go to GitHub, so keep keys and AppData files out of them. The task's
+  StartBoundary is 9:00 local time with no UTC offset (2.17: `-At` alone stores one, so after the November clock change
+  it fired at 8:00); keep that line in install.ps1.
 - The Morning and Night Screens show the AppData copy and pick up edits made here within a minute while they're
   open (7 to 10:30 AM, 8 to 11:30 PM).
 - When starting `powershell.exe` from the PowerShell 7 tool, clear `$env:PSModulePath` first.

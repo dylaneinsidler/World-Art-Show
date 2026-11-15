@@ -56,6 +56,8 @@ if ($python) {
     $action = New-ScheduledTaskAction -Execute $python -WorkingDirectory $here `
         -Argument "`"$(Join-Path $here 'tools\fetch_deviantart.py')`" --log"
     $trigger = New-ScheduledTaskTrigger -Daily -At '9:00 AM'
+    # Local time, no UTC offset: with an offset (-At adds one) it ran an hour early after the clocks changed.
+    $trigger.StartBoundary = ([datetime]'9:00 AM').ToString("yyyy-MM-dd'T'HH:mm:ss")
     $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
         -ExecutionTimeLimit (New-TimeSpan -Hours 2)
     $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Limited
