@@ -20,6 +20,8 @@
     'SMK – National Gallery of Denmark': { the: 'SMK, the National Gallery of Denmark', city: 'Copenhagen, Denmark', short: 'Copenhagen', at: [12.5779, 55.6888] },
     'Victoria and Albert Museum': { the: 'the V&A', city: 'London, United Kingdom', short: 'London', at: [-0.1722, 51.4966] },
     'Rijksmuseum': { the: 'the Rijksmuseum', city: 'Amsterdam, Netherlands', short: 'Amsterdam', at: [4.8852, 52.36] },
+    'The Museum of Modern Art': { the: 'MoMA, the Museum of Modern Art', city: 'New York, New York, USA', short: 'New York', at: [-73.9776, 40.7614] },
+    'Tate': { the: 'Tate', city: 'London, United Kingdom', short: 'London', at: [-0.0994, 51.5076] },
   };
 
   // ---------------------------------------------------------------- little helpers
@@ -141,6 +143,14 @@
       return {
         story: d.story, life: '', facts: d.facts, onView: false, now: "In the Rijksmuseum's collection",
         more: [d.credit, `Object number ${id}`], born: null,
+      };
+    }
+    if (work.info) {   // MoMA and Tate (2.16): no live lookup, so the art list carries what their open data says
+      const i = work.info;
+      return {
+        story: [], life: i.life || '', facts: [i.medium, i.size], onView: false,
+        now: `In the collection of ${(MUSEUMS[work.source] || {}).the || 'the museum'}`,
+        more: [i.credit, i.number && `Object number ${i.number}`], born: bornYear(i.life),
       };
     }
     return null;

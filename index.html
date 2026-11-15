@@ -219,15 +219,15 @@ async function fetchCatalog() {
 
 function useCatalog(catalog) {
   const col = Object.fromEntries(catalog.fields.map((f, i) => [f, i]));
-  // country -> artist -> works. A piece is picked by country first, so the show travels the world
-  // instead of mostly showing the countries whose artists the museums collect most.
+  // country -> artist -> works. A piece is picked by country first (in proportion to its artists, never the same
+  // country twice in a row), then an artist there.
   lastCatalog = catalog;
   byCountry = new Map();
   artistWeight = new Map();
   for (const r of catalog.works) {
     const w = { artist: r[col.artist], country: r[col.country], title: r[col.title], date: r[col.date],
                 source: r[col.source], page: r[col.page], image: r[col.image], medium: r[col.medium],
-                shape: shapeOf(r[col.w], r[col.h]) };
+                info: col.info != null ? r[col.info] : null, shape: shapeOf(r[col.w], r[col.h]) };
     if (!showDigital && isDigital(w)) continue;
     if (hiddenPages.has(w.page) || UNWANTED.test(w.title || '')) continue;
     const country = w.country.split(' / ')[0];
@@ -238,12 +238,14 @@ function useCatalog(catalog) {
     artists.get(w.artistKey).push(w);
     artistWeight.set(w.artistKey, Math.max(artistWeight.get(w.artistKey) || 0, SOURCE_WEIGHT[w.source] ?? 1));
   }
-  // Bigger art scenes come up more often, but only by the square root of their size, so every country
-  // gets regular turns.
+  // Each country comes up as often as its share of the artists (2.16). Until then it was the square root of that, and
+  // the last 8 countries waited their turn, so a country with a handful of artists came up nearly as often as one with
+  // hundreds: about 1 piece in 9 was by an African artist, from under 2% of the artists (Dylan, November 15, 2026:
+  // "I'm seeing a lot of ethnic art, like African art"). Now only the last country waits: never the same twice in a row.
   countryWeight = new Map([...byCountry].map(([country, artists]) =>
-    [country, Math.sqrt([...artists.keys()].reduce((sum, a) => sum + artistWeight.get(a), 0))]));
+    [country, [...artists.keys()].reduce((sum, a) => sum + artistWeight.get(a), 0)]));
   artistMemory = Math.min(600, Math.floor(artistWeight.size * 0.6));
-  countryMemory = Math.min(8, Math.floor(byCountry.size / 3));
+  countryMemory = Math.min(1, byCountry.size - 1);
   catalogBuilt = catalog.built;
 }
 
@@ -618,8 +620,8 @@ window.ArtShow = { holdClock, current: () => shownWork };
 let shownWork = null, lastSent = '';
 function tellRightScreen() {
   if (!DESKTOP || !shownWork) return;
-  const { artist, country, title, date, source, page, image } = shownWork;
-  const body = JSON.stringify({ work: { artist, country, title, date, source, page, image },
+  const { artist, country, title, date, source, page, image, info } = shownWork;
+  const body = JSON.stringify({ work: { artist, country, title, date, source, page, image, info },
                                 paused, nextAt: timer ? timerStarted + timeLeft : null,
                                 seconds: SECONDS_PER_PIECE, canGoBack: place > 0, digital: showDigital });
   if (body === lastSent) return;

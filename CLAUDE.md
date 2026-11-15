@@ -58,6 +58,19 @@ Any change Dylan asks for that changes the app makes a new version. After making
   `forgetOldestSeen` lets the older half come round again. On the PC the seen list is shared by every copy through
   launch.ps1's `/api/seen` (`seen.txt`); `-Test` (take-screenshots.ps1 passes it) keeps tests out of it. The Screens'
   server (port 47235) runs the AppData copy of launch.ps1: after changing it, copy it there and restart that server.
+- 2.16 (Dylan, 2026-11-15: "a lot of ethnic art, like African art. I'm not really so interested in that kind of art...
+  we need to pull in from more sources"): (1) picking: `countryWeight` is now the country's artist count (was its square
+  root) and `countryMemory` 1 (was up to 8): under the old rule ~11% of pieces were by African artists, who were 1.9% of
+  the artists. (2) `TRADITIONAL` in build_catalog.py drops folk/tribal/traditional styles (masks, Madhubani/Warli/Gond,
+  batik, Aboriginal, calligraphy, scrolls, miniatures...) by title + kind + medium (`item(..., medium=)` feeds `style`);
+  calligraphy left FLAT_ART. It's about styles, never an artist's country. (3) Two more museums from their open data on
+  GitHub: MoMA (`download_moma`: media.githubusercontent.com Artworks.json, 145 MB, at most weekly even with
+  `--max-age 0`, only the needed fields cached; ImageURL is 1024 px; Painting/Drawing/Print/Collage) and Tate
+  (`download_tate`: the 2014 CSVs, monthly; pictures `media.tate.org.uk/..._10.jpg`, 1536 px; birthplaces in local
+  languages, `TATE_PLACES`; countries from Wikidata by name first). Neither has a live lookup, so the catalog has a new
+  `info` column ({life, medium, size, credit, number}, null for the rest) that index.html passes to about.js / details.js.
+  Checked and not usable then: Yale (in-copyright pictures ~480 px), Finna (Cloudflare bot check), M+ (no open data
+  repo), Carnegie (repo gone).
 - GitHub sometimes fails the Pages deploy with a 500 (its own outage); update.yml retries once after two minutes.
 - Loading the art (2.10): the first piece of an opening races three pieces from different museums; a picture
   gets 15 s; a server that times out is skipped for 3 hours (`worldArtShow.hostDown` in localStorage, kept between

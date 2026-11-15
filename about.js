@@ -5,6 +5,7 @@
 //
 // Where the words come from:
 //   Art Institute of Chicago, Minneapolis Institute of Art, SMK, the V&A, the Rijksmuseum: each museum's own public records.
+//   MoMA and Tate (2.16): what their open data says, carried in the art list itself (work.info): they have no live lookup.
 //   DeviantArt: the artist's own description and profile, looked up by launch.ps1 with the PC's DeviantArt key.
 //   Artists' biographies (museum artists) and countries: Wikipedia, only when the page is clearly the same person.
 
@@ -16,6 +17,8 @@ const MUSEUMS = {
   'SMK – National Gallery of Denmark': { city: 'Copenhagen, Denmark', short: 'Copenhagen', at: [12.5779, 55.6888] },
   'Victoria and Albert Museum': { city: 'London, United Kingdom', short: 'London', at: [-0.1722, 51.4966] },
   'Rijksmuseum': { city: 'Amsterdam, Netherlands', short: 'Amsterdam', at: [4.8852, 52.36] },
+  'The Museum of Modern Art': { city: 'New York, New York, USA', short: 'New York', at: [-73.9776, 40.7614] },
+  'Tate': { city: 'London, United Kingdom', short: 'London', at: [-0.0994, 51.5076] },
 };
 
 // ------------------------------------------------------------------ countries
@@ -183,6 +186,14 @@ async function detailsFrom(work) {
     return {
       story: d.story, life: '', facts: d.facts, tags: [],
       origin: ['In the collection.', d.credit && `${d.credit}.`, `Object number ${id}.`],
+    };
+  }
+  if (work.info) {   // MoMA, Tate: from the art list
+    const i = work.info;
+    return {
+      story: [], life: i.life || '', facts: [i.medium, i.size], tags: [],
+      origin: ['In the collection.', i.credit && `${i.credit}.`, i.number && `Object number ${i.number}.`],
+      born: bornYear(i.life),
     };
   }
   if (work.source === 'DeviantArt') {

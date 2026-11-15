@@ -11,6 +11,10 @@ Sources:
   - SMK, National Gallery of Denmark  https://open.smk.dk/en/api
   - Victoria and Albert Museum    https://developers.vam.ac.uk/  (2.14)
   - Rijksmuseum                   https://data.rijksmuseum.nl/  (2.14)
+  - The Museum of Modern Art      https://github.com/MuseumofModernArt/collection  (2.16; its open data, updated
+    monthly, read at most once a week: the file is 145 MB)
+  - Tate                          https://github.com/tategallery/collection  (2.16; its open data from 2014, so works
+    up to about 2013; read at most once a month)
   - Wikidata (https://query.wikidata.org/) only to check that artists are still alive, and for the V&A's and the
     Rijksmuseum's artists, their country. Its own artworks aren't used: too many of their pictures are snapshots of
     a wall, a street or a gallery room.
@@ -237,6 +241,53 @@ def download_rijks():
     return list(found.values())
 
 
+MOMA_KINDS = {'Painting', 'Drawing', 'Print', 'Collage'}
+
+
+def download_moma():
+    """MoMA's paintings, drawings, prints and collages with a picture, made since a few years before MADE_SINCE: only
+    the fields used, so the cache (and GitHub's copy of it) stays small."""
+    raw = urllib.request.urlopen(urllib.request.Request(
+        'https://media.githubusercontent.com/media/MuseumofModernArt/collection/main/Artworks.json',
+        headers={'User-Agent': UA}), timeout=600).read()
+    rows = []
+    for w in json.loads(raw):
+        years = [int(y) for y in re.findall(r'\b(19\d\d|20\d\d)\b', w.get('Date') or '')]
+        if w.get('ImageURL') and w.get('Classification') in MOMA_KINDS and years and min(years) >= MADE_SINCE - 5:
+            rows.append({k: w.get(k) for k in ('ObjectID', 'Title', 'Artist', 'ArtistBio', 'Nationality', 'BeginDate',
+                                                'EndDate', 'Date', 'Medium', 'Dimensions', 'CreditLine',
+                                                'AccessionNumber', 'Classification', 'URL', 'ImageURL',
+                                                'Height (cm)', 'Width (cm)')})
+    print(f'  MoMA: {len(rows)}')
+    return rows
+
+
+TATE_DATA = 'https://raw.githubusercontent.com/tategallery/collection/master/'
+
+
+def download_tate():
+    """Tate's works with a picture, made since a few years before MADE_SINCE, each with its artist's record."""
+    import csv
+    import io
+
+    def table(name):
+        text = urllib.request.urlopen(urllib.request.Request(TATE_DATA + name, headers={'User-Agent': UA}),
+                                      timeout=300).read().decode('utf-8-sig')
+        return list(csv.DictReader(io.StringIO(text)))
+
+    artists = {a['id']: a for a in table('artist_data.csv')}
+    rows = []
+    for r in table('artwork_data.csv'):
+        if r['year'].isdigit() and int(r['year']) >= MADE_SINCE - 5 and r['thumbnailUrl'] and r['artistRole'] == 'artist':
+            a = artists.get(r['artistId']) or {}
+            rows.append({**{k: r[k] for k in ('accession_number', 'title', 'year', 'dateText', 'medium', 'dimensions',
+                                              'creditLine', 'width', 'height', 'thumbnailUrl', 'url')},
+                         'name': a.get('name'), 'born': a.get('yearOfBirth'), 'died': a.get('yearOfDeath'),
+                         'place': a.get('placeOfBirth')})
+    print(f'  Tate: {len(rows)}')
+    return rows
+
+
 def english(notations):
     """The English one of a Rijksmuseum record's labels ([{"@language": "en", "@value": "print"}, ...])."""
     for n in notations or []:
@@ -429,11 +480,14 @@ def living_birth_year(life):
     return int(m.group(1)) if m else None
 
 
-def item(source, page, image, title, date, artist, born, countries, width, height, kind=''):
+def item(source, page, image, title, date, artist, born, countries, width, height, kind='', info=None, medium=''):
+    """info: what the right screen shows for a museum it can't look up live (MoMA, Tate): {life, medium, size, credit,
+    number}. medium: the museum's own words for what it's made of, for the style check (traditional_style)."""
     title = re.sub(r'<[^>]+>', '', title or '')   # the V&A writes some titles with <i>...</i>
     return {'source': source, 'page': page, 'image': image, 'title': clean(title) or 'Untitled',
             'date': clean(date), 'artist': clean(artist), 'born': born, 'country': ' / '.join(countries[:2]),
-            'w': int(width or 0), 'h': int(height or 0), 'kind': kind}
+            'w': int(width or 0), 'h': int(height or 0), 'kind': kind, 'info': info,
+            'style': clean(f'{kind} {medium}')}
 
 
 # Only flat, hand-made art: paintings, drawings, watercolors, prints, collages. Photographs are out, and so are
@@ -441,8 +495,23 @@ def item(source, page, image, title, date, artist, born, countries, width, heigh
 AIC_TYPES = {'Painting', 'Drawing and Watercolor', 'Print'}
 AIC_SKIP_DEPARTMENTS = {'Photography and Media', 'Architecture and Design',
                         'Ryerson and Burnham Libraries Special Collections', 'AIC Archives'}
-FLAT_ART = re.compile(r'painting|drawing|print|works? on paper|collage|calligraphy|watercolou?r|gouache|pastel|'
+FLAT_ART = re.compile(r'painting|drawing|print|works? on paper|collage|watercolou?r|gouache|pastel|'
                       r'etching|lithograph|woodcut|linocut|serigraph|screenprint|engraving|aquatint|intaglio|sketch', re.I)
+# Folk, tribal and traditional styles are left out (2.16; Dylan, November 15, 2026: "I'm seeing a lot of ethnic art,
+# like African art. I'm not really so interested in that kind of art"): masks and ritual pieces, folk painting
+# traditions (Madhubani, Warli, Gond...), batik and cloth, Aboriginal dot and bark painting, calligraphy, scrolls and
+# miniatures. Read from the title, what the museum calls the piece and what it's made of. (The other half of what he
+# saw was the show favouring small countries; index.html's picking now goes by artist instead.)
+TRADITIONAL = re.compile(
+    r'\b(folk|tribal|tribe|traditional|indigenous|aboriginal|ethnographic|ritual|shaman\w*|totem\w*|masks?|'
+    r'madhubani|mithila|gond|warli|pattachitra|kalighat|pichh?wai|phad|kalamkari|tanjore|thangka|tingatinga|'
+    r'batik|kente|adinkra|bogolan|mud ?cloth|ndebele|huichol|amate|retablos?|ex-?votos?|molas?|arpillera|alebrijes?|'
+    r'inuit|haida|navajo|dreaming|dot painting|bark painting|cow ?dung|calligraph\w*|scrolls?|handscroll|'
+    r'album leaf|miniature painting|guohua|nihonga|icon painting)\b', re.I)
+
+
+def traditional_style(it):
+    return bool(TRADITIONAL.search(f"{it['title']} {it.get('style', '')}"))
 NOT_FLAT = re.compile(r'photo|video|film|installation|performance|sculpture|statue|relief|ceramic|glass|wood(?!cut)|'
                       r'metal|lacquer|bamboo|textile|jewel|furniture|costume|multiple|object|wall piece|'
                       r'matri(x|ces)|book|publication|judaica|architecture|time-based|'
@@ -486,7 +555,8 @@ def from_aic(rows, unknown):
         out.append(item('Art Institute of Chicago', f'https://www.artic.edu/artworks/{r["id"]}',
                         f'https://www.artic.edu/iiif/2/{r["image_id"]}/full/843,/0/default.jpg',
                         r.get('title'), r.get('date_display'), r.get('artist_title') or name, born, countries,
-                        t.get('width'), t.get('height'), r.get('artwork_type_title') or ''))
+                        t.get('width'), t.get('height'), r.get('artwork_type_title') or '',
+                        medium=r.get('medium_display') or ''))
     return out
 
 
@@ -509,7 +579,8 @@ def from_mia(rows, unknown):
         out.append(item('Minneapolis Institute of Art', f'https://collections.artsmia.org/art/{r["id"]}',
                         f'https://{int(r["id"]) % 7}.api.artsmia.org/800/{r["id"]}.jpg',
                         r.get('title'), r.get('dated'), artist, born, countries,
-                        r.get('image_width'), r.get('image_height'), clean(r.get('classification'))))
+                        r.get('image_width'), r.get('image_height'), clean(r.get('classification')),
+                        medium=r.get('medium') or ''))
     return out
 
 
@@ -540,7 +611,8 @@ def from_smk(rows, unknown):
         out.append(item('SMK – National Gallery of Denmark', f'https://open.smk.dk/artwork/image/{r["object_number"]}',
                         f'{r["image_iiif_id"]}/full/!1600,1600/0/default.jpg',
                         titles[0].get('title'), date, artist, int(birth[:4]), countries,
-                        r.get('image_width'), r.get('image_height'), kind))
+                        r.get('image_width'), r.get('image_height'), kind,
+                        medium=' '.join(r.get('techniques') or [])))
     return out
 
 
@@ -631,7 +703,89 @@ def from_rijks(found, records, people, unknown):
             continue
         out.append(item('Rijksmuseum', f'https://www.rijksmuseum.nl/en/collection/{rec["number"]}',
                         f'{rec["iiif"]}/full/!1600,1600/0/default.jpg', rec.get('title'), date, m['name'],
-                        born, countries, rec.get('w'), rec.get('h'), rec.get('kind') or kind))
+                        born, countries, rec.get('w'), rec.get('h'), rec.get('kind') or kind,
+                        medium=rec.get('materials') or ''))
+    return out
+
+
+def from_moma(rows, unknown):
+    """MoMA (2.16). Its pictures are at most 1024 pixels on the long side; the shape comes from the work's size in cm."""
+    out = []
+    for r in rows:
+        names, bios = r.get('Artist') or [], r.get('ArtistBio') or []
+        begins, ends = r.get('BeginDate') or [], r.get('EndDate') or []
+        # (Its classification already says the piece is flat, so a painting "on wood" is fine here.)
+        if not names or not begins or not made_since(r.get('Date')) or r.get('Classification') not in MOMA_KINDS \
+                or PHOTO_MEDIUM.search(r.get('Medium') or ''):
+            continue
+        # The first artist (a second is a collaborator): living, and born after BORN_AFTER.
+        born, died = begins[0], ends[0] if ends else 0
+        if died or not born or born < BORN_AFTER or NOT_A_PERSON.search(names[0]):
+            continue
+        nationality = clean((r.get('Nationality') or [''])[0])
+        countries = countries_from_nationality(nationality)
+        if not countries:
+            unknown[('MoMA', nationality)] += 1
+            continue
+        hw = [r.get('Height (cm)') or 0, r.get('Width (cm)') or 0]
+        h, w = (round(1024 * x / max(hw)) for x in hw) if min(hw) > 0 else (0, 0)
+        info = {'life': clean(bios[0] if bios else ''), 'medium': clean(r.get('Medium')),
+                'size': clean((r.get('Dimensions') or '').split('\n')[0]), 'credit': clean(r.get('CreditLine')),
+                'number': clean(r.get('AccessionNumber'))}
+        out.append(item('The Museum of Modern Art', r['URL'], r['ImageURL'], r.get('Title'), r.get('Date'),
+                        names[0], born, countries, w, h, r['Classification'], info, r.get('Medium') or ''))
+    return out
+
+
+# Tate writes each artist's birthplace in its own language ("Warszawa, Polska").
+TATE_PLACES = {'Al-Lubnan': 'Lebanon', 'Deutschland': 'Germany', 'México': 'Mexico', 'Brasil': 'Brazil', 'Éire': 'Ireland',
+               'Bharat': 'India', 'Latvija': 'Latvia', 'Italia': 'Italy', 'Ellás': 'Greece', 'Zhonghua': 'China',
+               'Polska': 'Poland', 'Schweiz': 'Switzerland', 'België': 'Belgium', 'Belgique': 'Belgium',
+               'Danmark': 'Denmark', 'Perú': 'Peru', 'España': 'Spain', 'Îran': 'Iran', 'Shqipëria': 'Albania',
+               'Rossiya': 'Russia', 'Türkiye': 'Turkey', 'Slovenská Republika': 'Slovakia', "Al-Jaza'ir": 'Algeria',
+               'Nederland': 'Netherlands', 'Lao': 'Laos', 'Nihon': 'Japan', "Taehan Min'guk": 'South Korea',
+               'Österreich': 'Austria', 'Sverige': 'Sweden', 'Norge': 'Norway', 'Suomi': 'Finland',
+               'Magyarország': 'Hungary', 'Ceská Republika': 'Czechia', 'Hrvatska': 'Croatia', 'Srbija': 'Serbia',
+               'România': 'Romania', 'Yisra\'el': 'Israel', 'Misr': 'Egypt', 'Al-Iraq': 'Iraq', 'Douglas': 'Isle of Man'}
+TATE_FLAT = re.compile(r'paint|ink\b|graphite|pencil|chalk|charcoal|crayon|watercolou?r|gouache|pastel|etching|'
+                       r'lithograph|woodcut|wood engraving|linocut|screenprint|engraving|aquatint|drypoint|mezzotint|'
+                       r'monotype|collage|marker|biro|ballpoint|print', re.I)
+
+
+def from_tate(rows, people, unknown):
+    """Tate (2.16): its 2014 open data. Pictures at 1536 pixels on the long side (the "_10" size on its picture
+    server); the shape comes from the work's size in mm."""
+    out = []
+    for r in rows:
+        name = clean(r.get('name'))
+        last, comma, first = name.partition(', ')
+        artist = f'{first} {last}' if comma and first else name
+        medium = clean(r.get('medium'))
+        born = int(r['born']) if (r.get('born') or '').isdigit() else 0
+        if not artist or r.get('died') or not born or born < BORN_AFTER or not made_since(r.get('year')) \
+                or not TATE_FLAT.search(medium) or PHOTO_MEDIUM.search(medium) or NOT_FLAT.search(medium) \
+                or NOT_A_PERSON.search(artist):
+            continue
+        p = people.get(artist) or {}
+        if p.get('died'):
+            continue
+        countries = [c for c in (country_from_label(x) for x in p.get('countries') or []) if c]
+        if not countries:
+            place = clean((r.get('place') or '').split(',')[-1])
+            country = country_from_label(place) or country_from_label(TATE_PLACES.get(place, ''))
+            if not country:
+                unknown[('Tate place', place)] += 1
+                continue
+            countries = [country]
+        w, h = (float(x) if (x or '').replace('.', '', 1).isdigit() else 0 for x in (r.get('width'), r.get('height')))
+        if w and h:
+            w, h = round(1536 * w / max(w, h)), round(1536 * h / max(w, h))
+        image = re.sub(r'^https?://www\.tate\.org\.uk/', 'https://media.tate.org.uk/', r['thumbnailUrl'])
+        image = re.sub(r'_\d+\.jpg$', '_10.jpg', image)
+        info = {'life': f'born {born}', 'medium': medium, 'size': clean(r.get('dimensions')),
+                'credit': clean(r.get('creditLine')), 'number': clean(r.get('accession_number'))}
+        out.append(item('Tate', (r.get('url') or '').replace('http://', 'https://'), image, r.get('title'),
+                        r.get('dateText') or r.get('year'), artist, born, countries, w, h, 'Tate', info, medium))
     return out
 
 
@@ -734,6 +888,16 @@ def main():
     records = rijks_records(rijks, args.fresh)
     rijks_people = wikidata_people({m.get('wikidata') for r in records.values() for m in r.get('makers') or []}, False, args.fresh)
     museums += from_rijks(rijks, records, rijks_people, unknown)
+    # MoMA and Tate (2.16): open data files, not searches, so they're read far less often (unless --fresh).
+    museums += from_moma(cached('moma', 0 if args.fresh else max(age, 24 * 7), download_moma), unknown)
+    tate = cached('tate', 0 if args.fresh else max(age, 24 * 30), download_tate)
+    tate_people = wikidata_people({' '.join(reversed(clean(r.get('name')).split(', ', 1))) for r in tate}, True, args.fresh)
+    museums += from_tate(tate, tate_people, unknown)
+    traditional = [it for it in museums if traditional_style(it)]
+    if traditional:
+        print(f'Leaving out {len(traditional)} pieces in folk, tribal or traditional styles, e.g. '
+              + '; '.join(f"{it['title'][:40]} ({it['artist']})" for it in traditional[:6]))
+    museums = [it for it in museums if not traditional_style(it)]
     dead = dead_on_wikidata([it for it in museums if it['born']], args.fresh)
     if dead:
         print(f'Leaving out {len(dead)} artists Wikidata records as having died, e.g. '
@@ -767,9 +931,11 @@ def main():
 
     # w, h: image shape (0 = unknown). medium: 'hand' (painted, drawn, printed: every museum piece, and DeviantArt's
     # pieces tagged with a traditional medium) or 'digital'; the show's "Digital art: Off" keeps to 'hand' (2.12).
+    # info: the details the right screen shows for MoMA and Tate, which it can't look up live (2.16); null otherwise.
     for it in final:
         it['medium'] = it.get('medium') or ('digital' if it['source'] == 'DeviantArt' else 'hand')
-    fields = ['artist', 'country', 'title', 'date', 'source', 'page', 'image', 'w', 'h', 'medium']
+        it['info'] = it.get('info') or None
+    fields = ['artist', 'country', 'title', 'date', 'source', 'page', 'image', 'w', 'h', 'medium', 'info']
     catalog = {'built': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC'),
                'fields': fields, 'works': [[it[f] for f in fields] for it in final]}
     OUT.write_text(json.dumps(catalog, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')

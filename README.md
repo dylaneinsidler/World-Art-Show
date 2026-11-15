@@ -2,7 +2,7 @@
 
 New art by living artists from around the world, a new piece every 60 seconds. On your computer it fills two screens: the art on the left, and its story on the right. On an iPad it's a home-screen app that works in portrait and landscape.
 
-![Both screens on the computer](screenshots/v2.15-01-dark.jpg)
+![Both screens on the computer](screenshots/v2.16-01-dark.jpg)
 
 - **Art made by hand or on a computer:** paintings, drawings, watercolors, prints, collages and digital art. No photography, no photos of objects, no AI-made images, no fan art or video game art.
 - **New work:** made in 2000 or later (2010 until version 2.14), by artists alive today.
@@ -47,9 +47,13 @@ On both: tap or click the link under a piece to open its page at the museum or o
 - [SMK – National Gallery of Denmark](https://open.smk.dk/en) (Denmark)
 - [Victoria and Albert Museum](https://collections.vam.ac.uk/) (United Kingdom, since 2.14): its prints, drawings and paintings
 - [Rijksmuseum](https://www.rijksmuseum.nl/en/collection) (Netherlands, since 2.14): its prints and drawings
+- [The Museum of Modern Art](https://www.moma.org/collection/) (New York, since 2.16): its paintings, drawings, prints and collages, from the open data MoMA updates each month (read once a week)
+- [Tate](https://www.tate.org.uk/art) (London, since 2.16): its paintings, drawings and prints, from the open data Tate published in 2014 (so works up to about 2013)
 - [DeviantArt](https://www.deviantart.com/daily-deviations): the pieces its staff pick each day (Daily Deviations), plus the last 12 months of new work by those artists (each one's gallery is checked every few days), once a key is set up (below). Judged by each piece's tags: only pieces tagged as painted, drawn or made digitally, and not photographs, AI-made images, fan art, video game or pixel art, crafts, or character-sale posts.
 
 Museum artists need a recorded birth year, no recorded death, and a birth year of 1925 or later. Museums can take years to record a death, so each one is also checked against [Wikidata](https://www.wikidata.org/) (matching name and birth year). The V&A and the Rijksmuseum don't record artists' lives in their search results, so their artists are looked up on Wikidata (the Rijksmuseum links most of them; the V&A's by name, only when the name belongs to exactly one artist there); a V&A artist Wikidata doesn't know takes the country where the piece was made. Pieces whose only picture isn't the artwork itself (a photo of the gallery room) can be listed in `tools/leave_out.txt`.
+
+Folk, tribal and traditional styles are left out (since 2.16): masks and ritual pieces, folk painting traditions (Madhubani, Warli, Gond...), batik and cloth, Aboriginal dot and bark painting, calligraphy, scrolls and miniatures, as the museums describe them. And each country comes up as often as its share of the artists, never twice in a row (until 2.16, every country got regular turns, so countries with a handful of artists came up far more often than their share).
 
 ## Setting up DeviantArt
 

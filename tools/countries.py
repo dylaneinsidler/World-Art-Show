@@ -49,7 +49,7 @@ Slovenia: Slovenian, Slovene | Somalia: Somali | South Africa: South African | S
 South Sudan: South Sudanese | Spain: Spanish, Catalan, Basque, Galician | Sri Lanka: Sri Lankan, Sinhalese
 Sudan: Sudanese | Suriname: Surinamese | Sweden: Swedish, Swede | Switzerland: Swiss | Syria: Syrian
 Taiwan: Taiwanese | Tajikistan: Tajik, Tajikistani | Tanzania: Tanzanian | Thailand: Thai
-Togo: Togolese | Tonga: Tongan | Trinidad and Tobago: Trinidadian, Tobagonian, Trinidadian and Tobagonian
+Togo: Togolese | Tonga: Tongan | Trinidad and Tobago: Trinidadian, Tobagonian, Trinidadian and Tobagonian, Trinidad and Tobagonian
 Tunisia: Tunisian | Turkey: Turkish, Türkiye | Turkmenistan: Turkmen | Uganda: Ugandan | Ukraine: Ukrainian
 United Arab Emirates: Emirati | United Kingdom: British, Briton, UK | United States: American, US, U.S.,
 Native American, African American, African-American, Chicano, Chicana, Chicanx, Hawaiian, Native Hawaiian, Alaska Native

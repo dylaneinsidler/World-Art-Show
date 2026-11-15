@@ -3,6 +3,25 @@
 What changed in each version of World Art Show, newest first. Every version has pictures in `screenshots\v<version>-<scene>`:
 after a change, bump `VERSION`, add it here, take a picture of both screens while it's open, and commit.
 
+## 2.16 (November 15, 2026)
+
+Dylan: "I'm seeing a lot of ethnic art, like African art. I'm not really so interested in that kind of art... we need to
+pull in from more sources... I want to see more art."
+
+- **Two more museums: MoMA and Tate.** The Museum of Modern Art in New York adds about 4,000 paintings, drawings and
+  prints by about 950 living artists, and Tate in London about 280 more. Both come from the open data each museum
+  publishes (MoMA updates its own every month). That takes the museum art from about 3,100 pieces to about 7,300, by
+  about 2,000 artists from 82 countries. The right screen shows their pieces like the others': what it's made of, its
+  size, the artist's story and the map line to New York or London.
+- **Every country in proportion.** The show used to give every country regular turns and make the last 8 countries
+  wait, so a country with a handful of artists came up nearly as often as one with hundreds: about 1 piece in 9 was by
+  an African artist, though they're under 2% of the artists. Now each country comes up as often as its share of the
+  artists (never the same country twice in a row): about 1 in 30 with the new museums. Britain and the United States
+  now each have about a quarter of the turns.
+- **No more folk, tribal or traditional styles:** masks and ritual pieces, folk painting traditions (Madhubani, Warli,
+  Gond...), batik and cloth, Aboriginal dot and bark painting, calligraphy, scrolls and miniatures are left out, going
+  by how the museums describe each piece.
+
 ## 2.15 (November 14, 2026)
 
 Dylan: "when a piece of art is loading, instead of having it say Dylan's world art show, have it say art loading instead"
