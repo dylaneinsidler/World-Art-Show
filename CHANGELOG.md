@@ -3,6 +3,13 @@
 What changed in each version of World Art Show, newest first. Every version has pictures in `screenshots\v<version>-<scene>`:
 after a change, bump `VERSION`, add it here, take a picture of both screens while it's open, and commit.
 
+## 2.15 (November 14, 2026)
+
+Dylan: "when a piece of art is loading, instead of having it say Dylan's world art show, have it say art loading instead"
+
+- **While the art loads, the left screen says "Art loading"** (with "Getting the newest art..." under it) instead of
+  "Dylan's World Art Show". That's the cover you see each time the show opens, in the Morning and Night Screens too.
+
 ## 2.14 (November 6, 2026)
 
 Dylan: "I haven't been really seeing new art... I want like five times the pool of art."
